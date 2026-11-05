@@ -1,0 +1,36 @@
+name: ci
+
+# Unit tests on every push, plus a weekly run, as in grid-carbon-intensity.
+# The matrix tests the ends: 3.11 is the oldest version this project claims
+# to support, 3.14 the one it is developed on. requirements.txt pins nothing,
+# so a red Monday run with no commits means the ecosystem moved, not the code.
+#
+# Deliberately NOT in CI: the two pulls. A build must not depend on figshare
+# or the Thünen Atlas being up; the tests replace every request.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1"    # Mondays 06:23 UTC
+
+jobs:
+  tests:
+    name: unit tests
+    # Pinned rather than ubuntu-latest, as in grid-carbon-intensity, so that a
+    # red build means this code broke, not that the runner image changed.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: pytest
+        run: python -m pytest -q

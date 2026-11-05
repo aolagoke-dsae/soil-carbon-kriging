@@ -1,0 +1,3 @@
+source_id,crs,xmin,xmax,ymin,ymax,basis
+bzelw2020,EPSG:25832,289263.5625,919037.75,5254295.0,6084511.5,"Layer extent published in the Thünen Atlas record (https://atlas.thuenen.de/api/v2/datasets/11, bbox_polygon)"
+potash2023,EPSG:4326,-125.0,-66.0,24.0,50.0,"Conterminous United States, rounded outward. Defined here, not by the source, which says only U.S. Midwest"

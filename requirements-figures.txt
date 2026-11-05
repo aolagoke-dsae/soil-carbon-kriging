@@ -1,0 +1,5 @@
+# Figure and GIS libraries for the notebooks. The clients, the checks and the
+# tests import none of them, so CI does not install them.
+#   pip install -r requirements.txt -r requirements-figures.txt
+geopandas>=1.0
+matplotlib>=3.8

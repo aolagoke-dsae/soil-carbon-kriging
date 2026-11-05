@@ -1,0 +1,23 @@
+# Raw responses can be fetched again by the clients; raw/manifest.csv records
+# each one's URL, time, size and SHA-256 and MUST be committed. git does not
+# descend into an ignored directory, so the contents are ignored rather than
+# the directory itself.
+raw/*
+!raw/manifest.csv
+
+# notebooks: exploration only. Their figures land in notebooks/scratch/.
+.ipynb_checkpoints/
+notebooks/scratch/
+
+# editor settings: personal, not part of the project
+.vscode/
+
+# secrets: neither source needs a token, so there should be none
+.env
+*.env
+
+# build artefacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

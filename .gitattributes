@@ -1,0 +1,11 @@
+# Normalise line endings in the repository.
+# Windows editors write CRLF; GitHub web edits write LF. Without this, the same
+# file looks fully rewritten depending on who touched it last.
+* text=auto eol=lf
+
+# Binary, never touch
+*.parquet binary
+*.gpkg    binary
+*.xlsx    binary
+*.png     binary
+*.jpg     binary

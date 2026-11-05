@@ -1,0 +1,8 @@
+# Ingestion, Checkpoint 1 and the tests. Nothing is pinned, as in
+# grid-carbon-intensity: CI installs the newest of everything, so a red
+# Monday run with no commits means the ecosystem moved, not the code.
+requests>=2.31
+numpy>=1.26
+pandas>=2.2
+scipy>=1.11
+pytest>=8.0

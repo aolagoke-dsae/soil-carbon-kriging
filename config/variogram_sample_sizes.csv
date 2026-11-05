@@ -1,0 +1,6 @@
+n_min,n_max,reading,condition,citation
+0,49,fewer than 50: of little value,,"Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. Journal of Soil Science, 43(1), 177-192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x"
+50,99,50-99: below the 100 needed,,"Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. Journal of Soil Science, 43(1), 177-192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x"
+100,149,100-149: the minimum needed,,"Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. Journal of Soil Science, 43(1), 177-192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x"
+150,224,150-224: might often be satisfactory,"normally distributed, isotropic variable","Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. Journal of Soil Science, 43(1), 177-192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x"
+225,,225 or more: usually reliable,"normally distributed, isotropic variable","Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. Journal of Soil Science, 43(1), 177-192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x"
