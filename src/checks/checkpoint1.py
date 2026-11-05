@@ -247,17 +247,40 @@ def local_metres(lon: np.ndarray, lat: np.ndarray) -> np.ndarray:
                  (lat - np.mean(lat)) * 110_574]
 
 
+def covers(segments: pd.DataFrame, depth: float = STOCK_DEPTH_CM) -> bool:
+    """True when a location's segments run from the surface to at least
+    `depth` cm with no gap and no overlap: the condition for a stock over that
+    depth without filling anything in. A location whose deepest segment
+    reaches the depth can still miss one in between."""
+    reach = 0.0
+    for top, bottom in sorted(zip(segments["sample_depth_min"], segments["sample_depth_max"])):
+        if reach >= depth:
+            break
+        if abs(float(top) - reach) > 1e-9:
+            return False
+        reach = float(bottom)
+    return reach >= depth
+
+
+def scheme(segments: pd.DataFrame, depth: float = STOCK_DEPTH_CM) -> str:
+    """The segments a location has above `depth` cm, e.g. '0-15 15-30'."""
+    above = sorted((float(a), float(b)) for a, b in
+                   zip(segments["sample_depth_min"], segments["sample_depth_max"]) if a < depth)
+    return " ".join(f"{a:g}-{b:g}" for a, b in above)
+
+
 def potash_diagnostics(loc: pd.DataFrame, meas: pd.DataFrame) -> pd.DataFrame:
     """Per site: locations against Webster and Oliver (1992), extent, spacing,
-    and how many locations reach 30 cm."""
-    bottom = pd.to_numeric(meas["sample_depth_max"], errors="coerce")
-    deepest = bottom.groupby([meas["site"], meas["location_id"]]).max()
+    the usual segments above 30 cm, and how many locations cover 0-30 cm
+    without a gap (out of all the site's locations, with segments or not)."""
+    by_location = {k: g for k, g in meas.groupby(KEY)}
     rows = []
     for site, g in loc.groupby("site"):
         xy = local_metres(pd.to_numeric(g["X"]).to_numpy(), pd.to_numeric(g["Y"]).to_numpy())
         nn = cKDTree(xy).query(xy, k=2)[0][:, 1] if len(g) > 1 else np.array([np.nan])
         span = xy.max(axis=0) - xy.min(axis=0)
-        d = deepest.xs(site, level=0) if site in deepest.index.get_level_values(0) else pd.Series(dtype=float)
+        segs = [by_location[k] for k in zip(g["site"], g["location_id"]) if k in by_location]
+        schemes = pd.Series([scheme(x) for x in segs], dtype=object)
         rows.append({
             "site": site,
             "locations": len(g),
@@ -265,8 +288,9 @@ def potash_diagnostics(loc: pd.DataFrame, meas: pd.DataFrame) -> pd.DataFrame:
             "variogram (Webster & Oliver 1992)": reading(len(g)),
             "extent E x N (m)": f"{span[0]:.0f} x {span[1]:.0f}",
             "median spacing (m)": round(float(np.nanmedian(nn)), 1),
-            f"reach {STOCK_DEPTH_CM} cm": f"{int((d >= STOCK_DEPTH_CM).sum())}/{len(d)}",
-            "deepest (cm)": float(d.max()) if len(d) else float("nan"),
+            f"usual segments above {STOCK_DEPTH_CM} cm": schemes.mode().iloc[0] if len(schemes) else "",
+            f"complete 0-{STOCK_DEPTH_CM} cm": f"{sum(covers(x) for x in segs)}/{len(g)}",
+            "deepest (cm)": max((float(x["sample_depth_max"].max()) for x in segs), default=float("nan")),
         })
     return pd.DataFrame(rows)
 

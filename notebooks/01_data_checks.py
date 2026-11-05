@@ -73,8 +73,8 @@ per_site
 # %% [markdown]
 # ## Potash et al. (2023): the layout of each field
 #
-# Each field in its own UTM zone (GeoPandas picks it), in metres from its
-# south-west corner. Clusters, transects or a grid change which lags a
+# Each field in its own UTM zone (GeoPandas picks it), in metres from the
+# south-west corner of its bounding box. Clusters, transects or a grid change which lags a
 # variogram can see.
 
 # %%
@@ -94,7 +94,7 @@ for ax, site in zip(axes.flat, sites):
     ax.tick_params(labelsize=7)
 for ax in list(axes.flat)[len(sites):]:
     ax.set_axis_off()
-fig.suptitle("Sampling locations per field, metres from the south-west corner",
+fig.suptitle("Sampling locations per field, metres from the south-west corner of its bounding box",
              x=0.01, ha="left", fontsize=10, color=INK)
 fig.tight_layout()
 fig.savefig(FIGS / "01_potash_field_layouts.png", dpi=150)

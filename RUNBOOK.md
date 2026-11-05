@@ -68,8 +68,9 @@ one failing on the defect it is there to catch.
 them; no value of them fails the checkpoint:
 
 - per Potash field: locations against Webster and Oliver (1992), from
-  `config/variogram_sample_sizes.csv`; segments; extent; median spacing; how
-  many locations reach 30 cm; the deepest segment
+  `config/variogram_sample_sizes.csv`; segments; extent; median spacing; the
+  usual segments above 30 cm; how many locations cover 0–30 cm without a gap
+  (changed after the first run: see *If it fails*); the deepest segment
 - BZE-LW: `kv_0_30` quantiles and medians by land use, sites by land use, the
   peat flag `bze_moor`, what `kv_30_100` (stored as text) holds, the sampling
   years, and the nearest-neighbour distances of the published points
@@ -91,3 +92,12 @@ the repository was written in reaches neither `api.figshare.com` nor
 `atlas.thuenen.de`: its egress proxy refuses both hosts (`CONNECT tunnel
 failed, response 403`). That is the environment, not the sources; both answer
 from an ordinary connection. Run the two pulls where they are reachable.
+
+**05.11.2026: a diagnostic that overstated depth coverage.** The first run
+reported, per field, the locations whose deepest segment reaches 30 cm, and
+gave IL-BR 63/63. Three IL-BR locations nevertheless miss a segment above
+30 cm (516-1: 20–30; 520-3: 0–10; 521-3: 10–20), so no 0–30 cm stock can be
+summed for them without filling one in. The diagnostic now counts a location
+only when its segments run from the surface to 30 cm without a gap or an
+overlap (`covers()`, tested), out of all the site's locations, with segments
+or not. It is reported, not judged, so the verdict did not change.

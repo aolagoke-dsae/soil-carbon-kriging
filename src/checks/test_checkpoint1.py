@@ -178,6 +178,30 @@ def test_an_empty_bulk_density_is_counted_not_failed(data):
     assert rules["P6"].passed and "1 BD empty" in rules["P6"].detail
 
 
+def test_a_gap_above_30_cm_or_no_segment_is_not_a_complete_0_30_cm(data):
+    """Prevents: a location whose deepest segment reaches 30 cm counting as
+    covered when a segment above it is missing (met on 05.11.2026: IL-BR)."""
+    rows = [r for r in _meas_rows() if not (r[0] == "S1" and r[1] == "1" and r[2] == 0)]
+    rows = [r for r in rows if not (r[0] == "S2" and r[1] == "1")]
+    data(meas=_measurements(rows))
+    rules, diag = _rules()
+    assert rules["P4"].passed
+    per_site = diag["potash"].set_index("site")["complete 0-30 cm"]
+    assert per_site["S1"] == "2/3" and per_site["S2"] == "2/3" and per_site["S3"] == "3/3"
+
+
+def test_coverage_needs_contiguous_segments_from_the_surface():
+    import pandas as pd
+    seg = lambda *pairs: pd.DataFrame(pairs, columns=["sample_depth_min", "sample_depth_max"])
+    assert C.covers(seg((0, 15), (15, 30)))
+    assert C.covers(seg((15, 30), (0, 15), (30, 60)))        # order does not matter
+    assert not C.covers(seg((0, 10), (20, 30)))               # a gap
+    assert not C.covers(seg((5, 15), (15, 30)))               # not from the surface
+    assert not C.covers(seg((0, 15), (10, 30)))               # an overlap
+    assert not C.covers(seg((0, 27)))                         # too shallow
+    assert C.scheme(seg((15, 30), (0, 15), (30, 60))) == "0-15 15-30"
+
+
 # --- BZE-LW ---------------------------------------------------------------------
 
 def test_a_site_repeated_across_pages_fails_b1(data):
