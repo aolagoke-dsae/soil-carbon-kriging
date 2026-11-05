@@ -12,7 +12,7 @@ Plan, not to this file.
 
 | Stage | What | Status |
 |---|---|---|
-| 1 | Pull both datasets through their clients; Checkpoint 1 | **written** 05.11.2026 (clients, rules, tests green on fixtures); **not run** |
+| 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
 | 2 | Potash: depth segments harmonised to stocks in 0–30 cm; experimental variograms per field | not yet specified |
 | 3 | Ordinary kriging per field with the kriging variance; spatially blocked cross-validation and interval coverage | not yet specified |
 | 4 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
@@ -82,8 +82,74 @@ record; `config/sources.csv`). Every later stage carries that offset.
 
 ### Result
 
-Not run. The 45 tests pass on fixtures (05.11.2026, Python 3.10.12 on Linux);
-no data has been pulled.
+**Passed on 5 November 2026: 9/9 rules.** The author pulled both datasets on
+Windows (Python 3.14) at 19:35–19:36 UTC: seven responses, every one HTTP 200
+at the first attempt and none rejected (`raw/manifest.csv`). The checkpoint
+gave the same rules and diagnostics there (19:36:44Z) and on Linux (Python
+3.10.12). This is the Linux run after the diagnostic change recorded under
+*If it fails*; 47 tests pass.
+
+```text
+Checkpoint 1, run 2026-11-05T19:41:59Z
+
+PASS  P1 provenance: version 2, CC BY 4.0; locations.csv, measurements.csv match the article's size and MD5
+PASS  P2 schema: locations.csv 1170 rows, measurements.csv 3977 rows; every described column present
+PASS  P3 sites: 8 sites in both files: IL-BR, IL-DG, IL-MC, IL-PT, IL-RD, IL-RS, IL-RT, NE
+PASS  P4 keys: 1170 unique locations; all 3977 measurement rows have one
+PASS  P5 coordinates: all 1170 inside lon -125..-66, lat 24..50; observed lon -96.4547..-88.1512, lat 39.0542..41.1524
+PASS  P6 values: 3977 segments ordered; SOCc and BD within bounds (0 SOCc and 0 BD empty)
+PASS  B1 completeness: 3104 features in 4 pages = numberMatched = 3104; pointid unique
+PASS  B2 CRS and geometry: EPSG:25832 points; geometry = xcoord/ycoord within 0.001 m; all inside the published extent
+PASS  B3 values: kv_0_30 within [0, 1000] Mg/ha (0 empty); land use codes in ['A', 'G', 'SO']
+
+Potash et al. (2023), per site (reported, not judged):
+ site  locations  segments variogram (Webster & Oliver 1992) extent E x N (m)  median spacing (m) usual segments above 30 cm complete 0-30 cm  deepest (cm)
+IL-BR         63       310       50-99: below the 100 needed        623 x 360                21.6           0-10 10-20 20-30            60/63          90.0
+IL-DG         97       559       50-99: below the 100 needed        351 x 517                40.8                 0-15 15-30            97/97          90.0
+IL-MC         52       257       50-99: below the 100 needed        667 x 331                37.3                 0-15 15-30            52/52          75.0
+IL-PT         93       554       50-99: below the 100 needed        577 x 366                44.5                 0-15 15-30            92/93          90.0
+IL-RD        249       497     225 or more: usually reliable        742 x 406                36.3                       0-30          248/249          60.0
+IL-RS        225       450     225 or more: usually reliable        697 x 400                34.2                       0-30          225/225          60.0
+IL-RT        247       486     225 or more: usually reliable        432 x 673                36.6                       0-30          245/247          60.0
+   NE        144       864       100-149: the minimum needed        238 x 543                11.6             0-5 5-15 15-30          144/144         120.0
+
+BZE-LW site layer (reported, not judged):
+  sites: 3104
+  kv_0_30 quantiles 5/25/50/75/95 (Mg/ha): [33.8, 48.6, 62.2, 83.7, 161.0]
+  sites by land use: {'A': 2234, 'G': 820, 'SO': 50}
+  kv_0_30 median by land use (Mg/ha): {'A': 55.7, 'G': 88.2, 'SO': 59.4}
+  bze_moor values: {'0': 2958, '1': 146}
+  kv_30_100 numeric / text / empty: 3088 / 16 / 0
+  kv_30_100 text values: {'NA': 16}
+  sampling years: 2011-2018
+  nearest published neighbour 5/25/50/75/95 (km): [4.11, 5.66, 6.83, 7.99, 10.26]
+
+Checkpoint 1 PASSED: 9/9 rules
+```
+
+What Stage 2 takes from it (facts, not yet rules):
+
+- **Four fields are below the 100 locations a variogram needs** (Webster and
+  Oliver 1992): IL-BR 63, IL-DG 97, IL-MC 52, IL-PT 93. NE has 144; IL-RD,
+  IL-RS and IL-RT have 225–249. By that reading only NE and the three large
+  grids have enough locations for a variogram of their own.
+- **The designs differ.** IL-RD, IL-RS and IL-RT are regular grids at about
+  35 m, IL-DG and IL-PT offset grids at 41–45 m, IL-BR, IL-MC and NE irregular
+  or clustered. At the five grids no two locations are closer than 20 m (the
+  closest pair: 20.3 m at IL-RT, 42.8 m at IL-PT), so a nugget there will be
+  extrapolated, not observed. NE has 111 pairs closer than 20 m (closest
+  5.6 m), IL-BR 5 and IL-MC 2.
+- **Every field's usual segments break at 30 cm**, so a 0–30 cm stock is a sum of
+  whole segments. 1,163 of 1,170 locations cover 0–30 cm without a gap; the
+  seven that do not are three at IL-BR, one at IL-PT and one at IL-RD, each
+  missing a segment above 30 cm, and two at IL-RT (RT-B12 has no segment, RT-M6
+  stops at 27 cm).
+- **BZE-LW:** the published points' nearest neighbours lie 4.1–10.3 km away
+  (5th–95th percentile, median 6.8 km), so they are not on the 8 km grid.
+  146 sites carry `bze_moor` = 1. Grassland's median 0–30 cm stock (88.2 Mg/ha)
+  is well above cropland's (55.7). `kv_30_100` is `NA` at 16 sites. The layer's
+  sampling years run 2011–2018, inside the 2009–2018 project period its
+  abstract gives.
 
 ### If it fails
 

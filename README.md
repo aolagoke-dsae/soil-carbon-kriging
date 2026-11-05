@@ -7,11 +7,10 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 1 written (05.11.2026), not run.** The two ingestion
-> clients, the Checkpoint 1 rules and their tests exist, and the tests pass on
-> fixtures. No data has been pulled and nothing has been kriged. The rules
-> were fixed in [`RUNBOOK.md`](RUNBOOK.md) by the first commit, before any
-> data was pulled.
+> **Status: Stage 1 run (05.11.2026).** Both datasets are pulled and pass
+> Checkpoint 1, 9 rules of 9 ([`RUNBOOK.md`](RUNBOOK.md), Stage 1). The rules
+> were fixed by the first commit, before any data was pulled. Nothing has
+> been kriged yet.
 
 ## Why
 
@@ -35,12 +34,12 @@ the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
 ## What is real
 
 - **Real:** two ingestion clients built on `requests` (retries, timeouts,
-  write-once storage, a manifest row per response); the Checkpoint 1 rules;
-  45 unit tests that replace every request; a CI workflow for Python 3.11
-  and 3.14, which runs once the repository is pushed.
-- **Not yet:** the pulls, Checkpoint 1's result, and everything from Stage 2
-  on: variograms, kriging, the kriging variance, the comparison with the
-  design-based estimate.
+  write-once storage, a manifest row per response); both datasets pulled and
+  checked against their sources (Checkpoint 1, 9/9 rules); 47 unit tests that
+  replace every request; a CI workflow for Python 3.11 and 3.14, which runs
+  once the repository is pushed.
+- **Not yet:** everything from Stage 2 on: variograms, kriging, the kriging
+  variance, the comparison with the design-based estimate.
 
 ## Licence
 
