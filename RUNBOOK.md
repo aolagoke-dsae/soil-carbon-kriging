@@ -13,13 +13,16 @@ Plan, not to this file.
 | Stage | What | Status |
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
-| 2 | Potash: depth segments harmonised to stocks in 0–30 cm; experimental variograms per field | not yet specified |
-| 3 | Ordinary kriging per field with the kriging variance; spatially blocked cross-validation and interval coverage | not yet specified |
-| 4 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
-| 5 | BZE-LW: a national variogram under the 4 km offset; covariates averaged within 4 km, through Earth Engine | not yet specified |
+| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **rules fixed** 05.11.2026; not built |
+| 3 | Terrain covariates for the eight fields: USGS 3DEP 10 m elevation and its derivatives, extracted through Earth Engine, the values committed | not yet specified |
+| 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
+| 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
+| 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
 
-Stages 2–5 are a direction, not instructions. Each gets its rules, written
-before its data is touched, once the stage before it has passed.
+Stages 3–6 are a direction, not instructions. Each gets its rules, written
+before its data is touched, once the stage before it has passed. The order
+of Stages 3–6 and the machine-learning benchmark follow the review of the
+Stage 2 draft ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
 ---
 
@@ -167,3 +170,98 @@ summed for them without filling one in. The diagnostic now counts a location
 only when its segments run from the surface to 30 cm without a gap or an
 overlap (`covers()`, tested), out of all the site's locations, with segments
 or not. It is reported, not judged, so the verdict did not change.
+
+---
+
+## Stage 2: stocks in 0–30 cm and covariance models (Potash fields)
+
+> **Rules fixed on 5 November 2026** by the commit that adds them, before any
+> variogram was computed. Before fixing, the draft was reviewed against
+> current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)) and changed
+> as the review proposed. The only data seen so far are Checkpoint 1's counts,
+> spacings and segments.
+
+```bash
+python -m src.transform.stocks       # curated/potash_stocks_0_30.parquet
+python -m src.transform.reml         # curated/potash_reml.parquet: the models Stage 4 krigs with
+python -m src.transform.variograms   # curated/potash_variograms.parquet: the gstat-style baseline
+python -m src.checks.checkpoint2
+```
+
+Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3),
+`scikit-learn` (rule R1) and `pyarrow` (Parquet) to `requirements.txt`.
+
+### Decisions, fixed before any variogram
+
+| | Decision | Why |
+|---|---|---|
+| D1 stock | Fixed depth, 0–30 cm: stock (Mg C/ha) = Σ SOCc (%) × BD (g/cm³) × thickness (cm), over the segments above 30 cm. No coarse-fragment correction: the files give none | Every field's usual segments end at 30 cm, so a stock is a sum of whole segments. Fixed depth suits a single survey; for change over time, equivalent soil mass is the standard (von Haden et al. 2020), and a resampling stage would use it |
+| D2 incomplete locations | The seven locations without contiguous segments from 0 to 30 cm are left out, not filled in: 1,163 stocks | A filled-in segment would put a model inside the data |
+| D3 scale | The original scale, Mg C/ha. Each field's skewness with its standard error, and a REML profile of the Box-Cox λ, are reported; a log-scale model becomes a Stage 4 sensitivity only for a field whose 95 % interval for λ excludes 1 | The field mean, the quantity soil-carbon accounting reports, is a linear functional of the stocks and is kriged on this scale without back-transform bias (Cressie 2006). A skewness threshold would flip on noise: its standard error is about ±0.34 at 52 points |
+| D4 two mean models per field | (a) a constant mean, for ordinary kriging; (b) a second-order polynomial in the coordinates, for second-order polynomial kriging | The two methods of the author's R workflow (Olagoke et al. 2023). REML likelihoods are not comparable between different mean models, so Stage 4 compares (a) with (b) by cross-validation |
+| D5 REML | For each field and each of (a) and (b), the covariance is estimated by REML: exponential, spherical and Matérn (ν estimated within 0.2–3), each with a nugget, coordinates in the field's UTM zone; the lowest AIC wins. These are the models Stage 4 krigs with | REML is consistent and less biased than moment estimates, above all with a trend (Lark et al. 2006), and copes better with small samples (Alves et al. 2009). AIC for choosing variogram models (Webster & McBratney 1989); the Matérn as a general soil model (Minasny & McBratney 2005) |
+| D6 parameter uncertainty | A 95 % profile-likelihood interval for each chosen model's effective range and nugget-to-sill ratio | Stage 4 propagates it instead of treating fitted parameters as known (Marchant & Lark 2004). At the five grid fields no pair is closer than 20 m, and the nugget's interval shows what the data cannot see |
+| D7 pooling, tested | The four large fields (NE, IL-RD, IL-RS, IL-RT) are fitted jointly by REML with shared correlation parameters (range, nugget ratio, ν) and field-specific means and variances, and the joint fit's AIC is compared with the sum of their own fits' AICs. If sharing is worse by at most 2 AIC units, the four small fields (IL-BR, IL-DG, IL-MC, IL-PT) take the shared parameters, re-estimated from all eight fields; otherwise each keeps its own REML fit | The large fields test the assumption before the small fields rely on it. Borrowing strength pays below about 60 points (Cui & Stein 1995), and the small fields are below the 100 a variogram needs (Webster & Oliver 1992) |
+| D8 moment baseline | Matheron's estimator; bins centred on multiples of the field's median nearest-neighbour spacing w (edges 0, w/2, 3w/2, …); lags up to half the largest pairwise distance; bins of fewer than 30 pairs not fitted; spherical and exponential fitted by weighted least squares with gstat's default weights N_j/h_j² (`fit.method = 7`), nugget ≥ 0, partial sill > 0, 0 < range ≤ 2 × the largest lag. Reported beside REML and drawn in notebook 02; Stage 4 does not krig with it | The gstat workflow as the author ran it in R (Pebesma 2004), so that a Python fit can be set beside an R one. The 30 pairs are a convention chosen here, not a cited result |
+| D9 scope | No kriging, no cross-validation and no map in Stage 2 | Stage 4 gets its own rules once Stages 2 and 3 have passed |
+
+### Checkpoint 2: rules
+
+| Rule | Passes when |
+|---|---|
+| S1 stocks | 1,163 stocks, one per (site, location_id); none of the seven incomplete locations; every stock finite and above 0 |
+| S2 arithmetic | Every stock equals Σ SOCc × BD × thickness recomputed by a second, loop-based path, within 1e-9 Mg/ha, and a hand-worked example reproduces in the tests |
+| R1 likelihood | The Gaussian log-likelihood the code computes for given parameters equals scikit-learn's `GaussianProcessRegressor.log_marginal_likelihood` for the same Matérn-plus-white-noise kernel on the same centred values, within 1e-8 relative; and the REML criterion equals a direct, unoptimised implementation of its formula within 1e-8 relative |
+| R2 recovery | On 50 simulated fields of 400 points (exponential covariance, effective range 150 m, nugget-to-sill ratio 0.3, sill 100, field 600 × 400 m), with the family given, the median REML estimates of the effective range, the nugget-to-sill ratio and the sill each lie within 10 % of the truth |
+| R3 fits | Every REML fit converged with its parameters inside their bounds, and every interval of D6 contains its estimate |
+| R4 record | `curated/potash_reml.parquet` holds one row per field and mean model (a, b), plus the joint fits of D7: family, ν, nugget, partial sill, effective range, AIC, the D6 intervals and the number of stocks, with no empty cell except ν for a non-Matérn family; and it states which parameters each small field takes, by the comparison D7 defines |
+| V1 bins | Every baseline variogram has the edges of D8, fits only bins of 30 pairs or more, and has no lag longer than half its field's largest pairwise distance |
+| V2 independent estimate | scikit-gstat, given the same coordinates, values and bin edges, returns the same semivariances (relative difference ≤ 1e-9) |
+| V3 baseline fits | Every baseline fit converged inside the D8 bounds, and scikit-gstat fitting the same bins and model with the same weights (`fit_sigma` = h/√N) reaches a weighted sum of squares within 1 % of ours |
+
+**Reported, not judged:**
+
+- per field: the number of stocks, mean, standard deviation, coefficient of
+  variation, skewness with its standard error, the Box-Cox λ with its 95 %
+  interval, and the R² of the second-order trend
+- per REML model: family, ν, nugget, partial sill, effective range, AIC, the
+  D6 intervals, the nugget-to-sill ratio with its class after Cambardella et
+  al. (1994) (below 25 % strong, 25–75 % moderate, above 75 % weak spatial
+  dependence), and any parameter that reached its bound
+- the pooling comparison of D7, and for each large field the ratio of the
+  shared to its own effective range
+- the moment baseline beside REML: effective range and nugget-to-sill ratio by both
+- anisotropy: directional moment variograms at 0, 45, 90 and 135°, and per
+  large field a REML fit with geometric anisotropy (ratio, angle, change in
+  AIC). Stage 4 adopts anisotropy only where it lowers the AIC by more than 2
+- robustness: the Cressie–Hawkins estimator beside Matheron's (Lark 2000)
+- notebook 02: each field's moment variogram with the baseline fit and the
+  REML model drawn over it
+
+**Known limits, accepted:**
+
+- IL-BR, IL-MC and NE are clustered or irregular, and method-of-moments
+  variograms from clustered data can be erratic (Marchant et al. 2013). That is
+  one reason Stage 4 krigs with the REML models; the baseline is for comparison
+- laboratory error sits inside the nugget, and modelling it gives more
+  realistic uncertainty (Takoutsing, Heuvelink & Stoorvogel 2022). The files
+  give no replicate precision; if the Geoderma paper reports one, it bounds
+  the nugget from below in Stage 4, and otherwise this stays a limit
+
+### References for Stage 2
+
+- Alves, M. de C., da Silva, F. M., Moraes, J. C., et al. (2009). Geostatistical analysis of the spatial variation of the berry borer and leaf miner in a coffee agroecosystem. *Precision Agriculture*, 12(1), 18–31. https://doi.org/10.1007/s11119-009-9151-z
+- Cambardella, C. A., Moorman, T. B., Novak, J. M., et al. (1994). Field-scale variability of soil properties in central Iowa soils. *Soil Science Society of America Journal*, 58(5), 1501–1511. https://doi.org/10.2136/sssaj1994.03615995005800050033x
+- Cressie, N. (2006). Block kriging for lognormal spatial processes. *Mathematical Geology*, 38(4), 413–443. https://doi.org/10.1007/s11004-005-9022-8
+- Cui, H., & Stein, A. (1995). Extension of spatial information, Bayesian kriging and updating of prior variogram parameters. *Environmetrics*, 6(4), 373–384. https://doi.org/10.1002/env.3170060406
+- Lark, R. M. (2000). A comparison of some robust estimators of the variogram for use in soil survey. *European Journal of Soil Science*, 51(1), 137–157. https://doi.org/10.1046/j.1365-2389.2000.00280.x
+- Lark, R. M., Cullis, B. R., & Welham, S. J. (2006). On spatial prediction of soil properties in the presence of a spatial trend: the empirical best linear unbiased predictor (E-BLUP) with REML. *European Journal of Soil Science*, 57(6), 787–799. https://doi.org/10.1111/j.1365-2389.2005.00768.x
+- Marchant, B. P., & Lark, R. M. (2004). Estimating variogram uncertainty. *Mathematical Geology*, 36(8), 867–898. https://doi.org/10.1023/b:matg.0000048797.08986.a7
+- Marchant, B. P., Viscarra Rossel, R. A., & Webster, R. (2013). Fluctuations in method-of-moments variograms caused by clustered sampling and their elimination by declustering and residual maximum likelihood estimation. *European Journal of Soil Science*, 64(4), 401–409. https://doi.org/10.1111/ejss.12029
+- Minasny, B., & McBratney, A. B. (2005). The Matérn function as a general model for soil variograms. *Geoderma*, 128(3–4), 192–207. https://doi.org/10.1016/j.geoderma.2005.04.003
+- Olagoke, A., Jeltsch, F., & Tietjen, B. (2023). Small-scale heterogeneity shapes grassland diversity in low-to-intermediate resource environments. *Journal of Vegetation Science*, 34(4). https://doi.org/10.1111/jvs.13196
+- Pebesma, E. J. (2004). Multivariable geostatistics in S: the gstat package. *Computers & Geosciences*, 30(7), 683–691. https://doi.org/10.1016/j.cageo.2004.03.012; default weights from the `fit.variogram` documentation, https://r-spatial.github.io/gstat/reference/fit.variogram.html
+- Takoutsing, B., Heuvelink, G. B. M., & Stoorvogel, J. J. (2022). Accounting for analytical and proximal soil sensing errors in digital soil mapping. *European Journal of Soil Science*, 73(2). https://doi.org/10.1111/ejss.13226
+- von Haden, A. C., Yang, W. H., & DeLucia, E. H. (2020). Soils' dirty little secret: depth-based comparisons can be inadequate for quantifying changes in soil organic carbon and other mineral soil properties. *Global Change Biology*, 26(7), 3759–3770. https://doi.org/10.1111/gcb.15124
+- Webster, R., & McBratney, A. B. (1989). On the Akaike Information Criterion for choosing models for variograms of soil properties. *Journal of Soil Science*, 40(3), 493–496. https://doi.org/10.1111/j.1365-2389.1989.tb01291.x
+- Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. *Journal of Soil Science*, 43(1), 177–192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x
