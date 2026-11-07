@@ -21,3 +21,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# curated/: rebuilt from raw/ by src/transform; the RUNBOOK records what they produced
+curated/

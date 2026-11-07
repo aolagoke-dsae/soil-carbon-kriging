@@ -7,10 +7,12 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 1 run (05.11.2026); Stage 2's rules fixed.** Both datasets
-> are pulled and pass Checkpoint 1, 9 rules of 9 ([`RUNBOOK.md`](RUNBOOK.md),
-> Stage 1). Each stage's rules are fixed by a commit before its data is
-> touched. Nothing has been kriged yet.
+> **Status: Stage 2 in build (07.11.2026).** Both datasets are pulled and
+> pass Checkpoint 1, 9 rules of 9. Of Checkpoint 2, the stock table and the
+> REML code pass their four rules; the fits, their record and the moment
+> baseline are not built yet ([`RUNBOOK.md`](RUNBOOK.md), Stage 2). Each
+> stage's rules are fixed by a commit before its data is touched. Nothing
+> has been kriged yet.
 
 ## Why
 
@@ -39,14 +41,19 @@ the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
 
 - **Real:** two ingestion clients built on `requests` (retries, timeouts,
   write-once storage, a manifest row per response); both datasets pulled and
-  checked against their sources (Checkpoint 1, 9/9 rules); 47 unit tests that
-  replace every request; a CI workflow for Python 3.11 and 3.14, which runs
-  once the repository is pushed.
-- **Not yet:** everything from Stage 2 on. Stage 2's rules are fixed
-  (05.11.2026, after a review against current practice in
-  [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)), but no variogram has
-  been computed: no REML fits, no kriging or kriging variance, no
-  machine-learning benchmark, no comparison with the design-based estimate.
+  checked against their sources (Checkpoint 1, 9/9 rules); the 0–30 cm stock
+  at 1,163 locations, checked against a second computation; REML for three
+  covariance families and two mean models, written in NumPy and SciPy, its
+  likelihood checked against scikit-learn's and its estimates on 50
+  simulated fields (Checkpoint 2, rules S1, S2, R1, R2); 80 unit tests, none
+  of which makes a request; a CI workflow for Python 3.11 and 3.14, which
+  runs once the repository is pushed.
+- **Not yet:** the REML fits to the eight fields, with their intervals and
+  the pooling test, and the moment baseline (Checkpoint 2, R3, R4, V1–V3).
+  Stage 2's rules were fixed on 05.11.2026, after a review against current
+  practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
+  no kriging or kriging variance, no machine-learning benchmark, no
+  comparison with the design-based estimate.
 
 ## Licence
 

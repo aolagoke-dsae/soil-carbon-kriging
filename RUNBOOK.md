@@ -13,7 +13,7 @@ Plan, not to this file.
 | Stage | What | Status |
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
-| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **rules fixed** 05.11.2026; not built |
+| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **in build**: rules fixed 05.11.2026; the stock table and the REML code pass S1, S2, R1 and R2 (07.11.2026); R3, R4 and V1–V3 not built |
 | 3 | Terrain covariates for the eight fields: USGS 3DEP 10 m elevation and its derivatives, extracted through Earth Engine, the values committed | not yet specified |
 | 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
@@ -248,12 +248,106 @@ Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3),
   give no replicate precision; if the Geoderma paper reports one, it bounds
   the nugget from below in Stage 4, and otherwise this stays a limit
 
+### Built so far
+
+**07.11.2026: the stock table and the REML code; S1, S2, R1 and R2 pass.**
+R3, R4 and V1–V3 are not built, so Checkpoint 2 exits 3 (no rule failed,
+some not built) and Stage 2 has not passed. Two of the four commands exist:
+
+```bash
+python -m src.transform.stocks       # curated/potash_stocks_0_30.parquet
+python -m src.checks.checkpoint2     # exit 0 passed, 1 a rule failed, 2 inputs missing, 3 not all built
+```
+
+`requirements.txt` now has pyproj, pyarrow and scikit-learn; scikit-gstat
+comes with V2 and V3. `curated/` is not committed: the transforms rebuild it
+from `raw/`, and this file records what they produced.
+
+Choices made while building, inside the decisions above. None of them
+depends on the stocks:
+
+- **Effective range.** Each family is written in terms of the distance at
+  which its correlation falls to 0.05, or, for the spherical, which reaches
+  zero, its range. A Matérn with ν = 0.5 is then the exponential with the
+  same effective range, and the bounds mean the same in every family.
+- **The REML criterion** is the density of the n − p orthonormal error
+  contrasts (Harville 1974), the form with −log|X′X|. It does not depend on
+  how the trend's coordinates are scaled or centred, and R1's direct version
+  centres them differently to test that.
+- **The sill is profiled out** in closed form, so the search runs over the
+  effective range, the nugget-to-sill ratio and, for the Matérn, ν.
+- **Bounds**, against which R3 will judge the fits: the effective range from
+  half the smallest separation to three times the largest; the
+  nugget-to-sill ratio from 10⁻⁶ to 1, so that a smaller nugget counts as
+  none and the correlation matrix stays invertible; ν from 0.2 to 3 (D5).
+- **Search:** 72 starting points on a grid (360 for the Matérn), the best two
+  refined by L-BFGS-B, and a bounded Nelder–Mead as a second try where
+  L-BFGS-B stops without converging.
+- **Coordinates:** each field in the UTM zone of its mean longitude. IL-BR
+  lies just west of 90° W and falls in zone 15, the other Illinois fields in
+  16, NE in 14.
+- **R1's parameter sets** come from each field's geometry and sample
+  variance, never from a fit: effective ranges of 0.1 and 0.3 times the
+  largest separation, nugget-to-sill ratios of 0.1 and 0.5, and ν of 0.3,
+  0.5, 1.5 and 2.2 (two of scikit-learn's closed forms and its
+  Bessel-function path). For the Matérn, R1's direct REML takes its
+  covariance from scikit-learn's kernel and so shares no code with
+  `reml.py`. For the exponential and the spherical it uses
+  `reml.covariance`, whose correlations the unit tests check against closed
+  forms.
+
+Run on Linux (Python 3.10.12) in 60 seconds; 80 tests pass, 47 of them from
+Stage 1.
+
+```text
+Checkpoint 2, run 2026-11-07T18:51:27Z
+
+PASS  S1 stocks: 1163 stocks, one per (site, location_id), none of the seven incomplete locations; all finite, 13.2 to 117.1 Mg C/ha
+PASS  S2 arithmetic: largest difference from the loop-based recomputation 1.4e-14 Mg C/ha (rule: 1e-09); the hand-worked example is in src/transform/test_stocks.py
+PASS  R1 likelihood: Gaussian log-likelihood against scikit-learn's GaussianProcessRegressor, largest relative difference 6.2e-13 over 128 parameter sets; REML criterion against its formula with explicit inverses, 6.5e-13 over 384, both mean models and all three families (rule: 1e-08)
+PASS  R2 recovery: medians over 50 fields of 400 points: effective range 151.3 m (+0.8%; quartiles 126 to 178), nugget-to-sill 0.296 (-1.3%; 0.255 to 0.346), sill 99.4 (-0.6%; 91.5 to 108); 50/50 fits converged (rule: each median within 10%)
+----  R3 fits: not built yet
+----  R4 record: not built yet
+----  V1 bins: not built yet
+----  V2 independent estimate: not built yet
+----  V3 baseline fits: not built yet
+
+Stocks in 0-30 cm per field, Mg C/ha (reported, not judged; the Box-Cox profile of D3 comes with the fits):
+ site  stocks mean   sd cv (%) skewness ± se trend R2
+IL-BR      60 21.8  3.8   17.2  +0.19 ± 0.31     0.20
+IL-DG      97 61.0  8.2   13.5  +0.26 ± 0.24     0.09
+IL-MC      52 50.9  6.6   13.1  +0.24 ± 0.33     0.31
+IL-PT      92 61.5  7.4   12.0  +0.21 ± 0.25     0.17
+IL-RD     248 65.4 14.2   21.7  +0.20 ± 0.15     0.08
+IL-RS     225 64.0 14.7   23.0  -0.18 ± 0.16     0.14
+IL-RT     245 61.7 17.4   28.2  +0.18 ± 0.16     0.44
+   NE     144 64.4  7.4   11.5  +0.33 ± 0.20     0.31
+
+Checkpoint 2 NOT COMPLETE: 4/4 built rules passed, 5 not built yet
+```
+
+**Reported, not judged:**
+
+- **IL-BR's stocks are about a third of the other fields'**: a mean of
+  21.8 Mg C/ha, against 50.9–65.4 in the other seven. Its median SOCc in the
+  segments above 30 cm is 0.57 %, against 1.6–1.9 % elsewhere, while its bulk
+  density is ordinary (median 1.12 g/cm³). The figshare description gives
+  SOCc in % for every site, so this may be the field itself. The site table
+  in Potash et al. (2023, https://doi.org/10.1016/j.geoderma.2023.116587) is
+  where to confirm it, before Stage 4 relies on it.
+- Every field's skewness lies within two standard errors of zero; the
+  largest is NE's, +0.33 ± 0.20. The Box-Cox profiles of D3 come with the
+  fits.
+- The second-order trend explains 8–44 % of the variance: 44 % at IL-RT,
+  31 % at NE and IL-MC.
+
 ### References for Stage 2
 
 - Alves, M. de C., da Silva, F. M., Moraes, J. C., et al. (2009). Geostatistical analysis of the spatial variation of the berry borer and leaf miner in a coffee agroecosystem. *Precision Agriculture*, 12(1), 18–31. https://doi.org/10.1007/s11119-009-9151-z
 - Cambardella, C. A., Moorman, T. B., Novak, J. M., et al. (1994). Field-scale variability of soil properties in central Iowa soils. *Soil Science Society of America Journal*, 58(5), 1501–1511. https://doi.org/10.2136/sssaj1994.03615995005800050033x
 - Cressie, N. (2006). Block kriging for lognormal spatial processes. *Mathematical Geology*, 38(4), 413–443. https://doi.org/10.1007/s11004-005-9022-8
 - Cui, H., & Stein, A. (1995). Extension of spatial information, Bayesian kriging and updating of prior variogram parameters. *Environmetrics*, 6(4), 373–384. https://doi.org/10.1002/env.3170060406
+- Harville, D. A. (1974). Bayesian inference for variance components using only error contrasts. *Biometrika*, 61(2), 383–385. https://doi.org/10.1093/biomet/61.2.383
 - Lark, R. M. (2000). A comparison of some robust estimators of the variogram for use in soil survey. *European Journal of Soil Science*, 51(1), 137–157. https://doi.org/10.1046/j.1365-2389.2000.00280.x
 - Lark, R. M., Cullis, B. R., & Welham, S. J. (2006). On spatial prediction of soil properties in the presence of a spatial trend: the empirical best linear unbiased predictor (E-BLUP) with REML. *European Journal of Soil Science*, 57(6), 787–799. https://doi.org/10.1111/j.1365-2389.2005.00768.x
 - Marchant, B. P., & Lark, R. M. (2004). Estimating variogram uncertainty. *Mathematical Geology*, 36(8), 867–898. https://doi.org/10.1023/b:matg.0000048797.08986.a7

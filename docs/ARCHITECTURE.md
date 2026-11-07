@@ -11,7 +11,7 @@ passing checkpoint, and the honesty rules. Only what differs is recorded here.
 | Layer | Standard | Here | Why |
 |---|---|---|---|
 | Ingestion | `requests` clients | The same, against two open APIs without a token: figshare REST API v2 (version pinned, size and MD5 per file) and OGC WFS 2.0 (paged, sorted by `pointid`) | Both sources publish through an API, so no browser download is needed |
-| Warehouse | DuckDB + dbt | None at Stage 1 | Two tables of a few thousand rows. Revisit at Stage 6, if national covariates are joined at scale |
+| Warehouse | DuckDB + dbt | None. From Stage 2 the transforms write Parquet to `curated/`, which is rebuilt from `raw/` and not committed | Two tables of a few thousand rows. Revisit at Stage 6, if national covariates are joined at scale |
 | Analysis | NumPy | GeoPandas and SciPy now. From Stage 2: REML in NumPy and SciPy, scikit-gstat for the gstat-style baseline and its check, scikit-learn for the likelihood check; from Stage 4, forests for the benchmark | Geostatistics by REML, as current practice recommends (`docs/REVIEW_STAGE2.md`). A library enters `requirements*.txt` when a stage uses it, not before |
 | Earth Engine | not in the standard | Stage 3 only, to extract terrain values at the sampling locations | The values are committed (USGS 3DEP is public domain), so no result needs an Earth Engine account: the governing rule holds if the account lapses |
 | Publication | Quarto → GitHub Pages | Not yet | After Stage 4, when there is a result to publish |

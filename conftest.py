@@ -3,5 +3,5 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-for _p in ("src/ingest", "src/checks"):
+for _p in ("src/ingest", "src/checks", "src/transform"):
     sys.path.insert(0, str(ROOT / _p))
