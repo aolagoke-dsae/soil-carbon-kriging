@@ -11,3 +11,6 @@ pytest>=8.0
 pyproj>=3.6
 pyarrow>=15.0
 scikit-learn>=1.4
+
+# Stage 2, rules V2 and V3: scikit-gstat's semivariances and fits beside the baseline's
+scikit-gstat>=1.0

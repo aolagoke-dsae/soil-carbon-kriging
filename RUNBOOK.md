@@ -13,7 +13,7 @@ Plan, not to this file.
 | Stage | What | Status |
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
-| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **in build**: rules fixed 05.11.2026; S1, S2 and R1–R4 pass (07.11.2026): the stock table, the REML code and the fits; V1–V3, the moment baseline, not built |
+| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
 | 3 | Terrain covariates for the eight fields: USGS 3DEP 10 m elevation and its derivatives, extracted through Earth Engine, the values committed | not yet specified |
 | 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
@@ -248,30 +248,32 @@ Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3),
   give no replicate precision; if the Geoderma paper reports one, it bounds
   the nugget from below in Stage 4, and otherwise this stays a limit
 
-### Built so far
+### Result
 
-**07.11.2026: the stock table, the REML code and the fits; S1, S2 and R1–R4
-pass.** V1–V3, the moment baseline, are not built, so Checkpoint 2 exits 3
-(no rule failed, some not built) and Stage 2 has not passed. Three of the
-four commands exist:
+**Passed on 7 November 2026: 9/9 rules.** The five commands, in order:
 
 ```bash
 python -m src.transform.stocks       # curated/potash_stocks_0_30.parquet
 python -m src.transform.reml         # curated/potash_reml.parquet and three tables beside it
-python -m src.checks.checkpoint2     # exit 0 passed, 1 a rule failed, 2 inputs missing, 3 not all built
+python -m src.transform.anisotropy   # curated/potash_anisotropy.parquet
+python -m src.transform.variograms   # curated/potash_variograms.parquet and the baseline fits
+python -m src.checks.checkpoint2     # exit 0 passed, 1 a rule failed, 2 an input missing
 ```
 
-`python -m src.transform.reml` takes about two minutes. Each of its steps is
-cached in `curated/reml_cache/`, keyed by the module's source and the step's
-data, so `--budget SECONDS` can stop it early (exit 4) and a second run
+The REML run takes about two minutes, the anisotropy run under half a
+minute. Both cache each step (`curated/reml_cache/`,
+`curated/anisotropy_cache/`), keyed by the module's source and the step's
+data, so `--budget SECONDS` can stop either early (exit 4) and a second run
 continues where it stopped; a changed input or a changed module starts
-afresh. Beside the record it writes every family's fit
+afresh. Beside the REML record go every family's fit
 (`potash_reml_families.parquet`), the pooling comparison
-(`potash_pooling.parquet`) and the Box-Cox profiles (`potash_boxcox.parquet`).
+(`potash_pooling.parquet`) and the Box-Cox profiles
+(`potash_boxcox.parquet`); beside the semivariances, the baseline's fits
+(`potash_variogram_fits.parquet`). Notebook 02 draws them.
 
-`requirements.txt` now has pyproj, pyarrow and scikit-learn; scikit-gstat
-comes with V2 and V3. `curated/` is not committed: the transforms rebuild it
-from `raw/`, and this file records what they produced.
+`requirements.txt` now has pyproj, pyarrow, scikit-learn and scikit-gstat.
+`curated/` is not committed: the transforms rebuild it from `raw/`, and this
+file records what they produced.
 
 Choices made while building, inside the decisions above. None of them
 depends on the stocks:
@@ -328,27 +330,52 @@ depends on the stocks:
   `takes` says whether a field's own fit or the shared parameters apply, and
   `for_stage4` marks the one model per field and mean model that Stage 4
   krigs with.
+- **The baseline (D8)** takes the stocks under (a) and their OLS residuals
+  from the second-order trend under (b), as gstat's `variogram()` does for
+  ordinary and universal kriging. A bin is [lo, hi) and its lag the mean
+  distance of its pairs. The range in D8's bound is gstat's range parameter
+  a: the spherical's range, and the exponential's distance parameter, a
+  third of its practical range; the baseline's effective range is reported
+  as REML defines it (a, or a ln 20). For a given a the model is linear in
+  the nugget and the partial sill, so they are solved exactly by
+  non-negative least squares and only a is searched: 200 points on a log
+  grid, then Brent's method. "c > 0" is c ≥ 10⁻⁹ times the largest
+  semivariance, "0 < a" is a ≥ 0.001 times the largest lag. Of the two
+  families, the lower weighted sum of squares is the baseline's.
+- **Cressie–Hawkins** carries the 0.045/N² term, as scikit-gstat has it.
+  **Directions** are 0, 45, 90 and 135° clockwise from north, ±22.5°, as
+  gstat's `alpha` and `tol.hor`, so the four sectors partition the pairs.
+- **V2 and V3's independent side** is scikit-gstat 1.0: for V2 its
+  `Variogram`, given the same coordinates, values and upper bin edges (its
+  bins close on the right, which differs from [lo, hi) only for a pair at
+  an edge's exact distance; the pair counts agree); for V3 its model
+  functions, fitted by `scipy.optimize.curve_fit`, the routine scikit-gstat
+  fits with, from three starts, with sigma = h/√N, the same bins and D8's
+  bounds in its parameters (its exponential range r is 3a).
+- **Anisotropy**, reported: each large field's D5 family refitted with the
+  distance across an axis at azimuth θ stretched by 1/ratio (ratio from 0.1
+  to 1), started from the isotropic estimate at four angles. At ratio 1 it
+  is the isotropic model, so the refit can only match or better it; R3
+  checks that it does, and that every refit converged inside its bounds.
 
-Run on Linux (Python 3.10.12): the REML run in two parts of about a minute
-each, the checkpoint in 49 seconds; 96 tests pass, 47 of them from Stage 1.
-The author then ran both on Windows (Python 3.14.8, pandas 3) and got the
-same rules and tables at 21:18:44Z. The REML run there took all 139 steps
-from the cache this run had written, so on Windows the fits were read, not
-recomputed; R1 and R2 ran afresh and gave the same numbers. Deleting
-`curated/reml_cache` first would make the fits a Windows computation too.
+Run on Linux (Python 3.10.12) in 59 seconds; 110 tests pass, 47 of them from
+Stage 1. The author's Windows run (Python 3.14.8, pandas 3), at 21:18:44Z
+before V1–V3 were built, gave the same S1–R4; its REML fits came from this
+run's cache. On Windows, `python -m pip install -r requirements.txt` adds
+scikit-gstat for V2 and V3.
 
 ```text
-Checkpoint 2, run 2026-11-07T21:04:21Z
+Checkpoint 2, run 2026-11-07T21:39:44Z
 
 PASS  S1 stocks: 1163 stocks, one per (site, location_id), none of the seven incomplete locations; all finite, 13.2 to 117.1 Mg C/ha
 PASS  S2 arithmetic: largest difference from the loop-based recomputation 1.4e-14 Mg C/ha (rule: 1e-09); the hand-worked example is in src/transform/test_stocks.py
 PASS  R1 likelihood: Gaussian log-likelihood against scikit-learn's GaussianProcessRegressor, largest relative difference 6.2e-13 over 128 parameter sets; REML criterion against its formula with explicit inverses, 6.5e-13 over 384, both mean models and all three families (rule: 1e-08)
 PASS  R2 recovery: medians over 50 fields of 400 points: effective range 151.3 m (+0.8%; quartiles 126 to 178), nugget-to-sill 0.296 (-1.3%; 0.255 to 0.346), sill 99.4 (-0.6%; 91.5 to 108); 50/50 fits converged (rule: each median within 10%)
-PASS  R3 fits: all 55 fits converged inside their bounds (48 of one field, 7 joint); the D6 intervals of all 19 chosen models contain their estimates, and no profile rose above its fit by more than 0.0001
+PASS  R3 fits: all 55 fits converged inside their bounds (48 of one field, 7 joint), and so did the 8 anisotropic refits, none below its isotropic fit; the D6 intervals of all 19 chosen models contain their estimates, and no profile rose above its fit by more than 0.0001
 PASS  R4 record: 16 rows, one per field and mean model, and 16 rows for D7's joint fits; no empty cell but nu outside the Matern; the numbers of stocks as in the stock table; constant mean, sharing +6.9 AIC: the small fields take own parameters; quadratic mean, sharing -0.7 AIC: the small fields take shared parameters; one model per field and mean model marked for Stage 4
-----  V1 bins: not built yet
-----  V2 independent estimate: not built yet
-----  V3 baseline fits: not built yet
+PASS  V1 bins: 16 baseline variograms, every field and mean model, with D8's edges; only and all bins of 30 pairs or more fitted (172 bins); no lag beyond half its field's largest separation
+PASS  V2 independent estimate: scikit-gstat 1.0.24, given the same coordinates, values and edges: the same pair counts, and semivariances within 1.7e-14 relative over 176 bins (rule: 1e-09)
+PASS  V3 baseline fits: all 32 baseline fits converged inside D8's bounds; scikit-gstat's models, fitted to the same bins with sigma = h/sqrt(N), reach weighted sums of squares within 0.00% of ours (rule: 1%)
 
 Reported, not judged:
 
@@ -402,7 +429,56 @@ IL-RS   spherical  1.48 [1.10, 1.89]                 yes
 IL-RT      matern  0.62 [0.30, 0.95]                 yes
    NE exponential  1.87 [0.79, 2.97]                  no
 
-Checkpoint 2 NOT COMPLETE: 6/6 built rules passed, 3 not built yet
+D8, the moment baseline beside REML (effective ranges as REML defines them):
+field mean    baseline range (m) nugget/sill     at bound           REML    REML range (m)    REML nugget/sill
+IL-BR  (a)   spherical       159        0.79            -      spherical    34 [7*, 1981*] 0.00 [0.00*, 1.00*]
+IL-DG  (a)   spherical         0        1.00 partial_sill      spherical 1820 [19*, 1820*]  0.78 [0.28, 1.00*]
+IL-MC  (a)   spherical       171        0.61            -      spherical  2064 [65, 2064*]  0.34 [0.00*, 0.92]
+IL-PT  (a)   spherical       528        0.79            a      spherical  401 [128, 1981*]   0.81 [0.19, 0.98]
+IL-RD  (a) exponential       220        0.52            -      spherical     237 [86, 289]   0.61 [0.34, 0.82]
+IL-RS  (a) exponential       291        0.45            -      spherical    164 [120, 209]   0.48 [0.27, 0.69]
+IL-RT  (a) exponential      1487        0.15            - matern nu 0.23 2401 [212, 2401*]  0.00 [0.00*, 0.25]
+   NE  (a) exponential       139        0.00       nugget    exponential     129 [79, 350]  0.00 [0.00*, 0.14]
+IL-BR  (b)   spherical        30        0.99            -      spherical    27 [7*, 1981*] 0.00 [0.00*, 1.00*]
+IL-DG  (b)   spherical         0        1.00 partial_sill    exponential   19 [19*, 1820*] 1.00 [0.00*, 1.00*]
+IL-MC  (b)   spherical        72        0.37            -      spherical    64 [8*, 2064*] 0.00 [0.00*, 1.00*]
+IL-PT  (b)   spherical         0        1.00 partial_sill    exponential   21 [21*, 1981*] 1.00 [0.00*, 1.00*]
+IL-RD  (b) exponential       139        0.52            -      spherical     245 [88, 296]   0.50 [0.06, 0.77]
+IL-RS  (b)   spherical       137        0.61            -      spherical     160 [97, 305]   0.51 [0.03, 0.74]
+IL-RT  (b)   spherical       120        0.41            -      spherical       73 [64, 92]  0.00 [0.00*, 0.28]
+   NE  (b)   spherical        62        0.03            -      spherical       68 [51, 84]  0.05 [0.00*, 0.26]
+
+Cressie-Hawkins beside Matheron over the fitted bins:
+field mean  bins Cressie-Hawkins / Matheron, median smallest largest
+IL-BR  (a)    13                               1.00     0.81    1.16
+IL-DG  (a)     6                               0.80     0.68    0.82
+IL-MC  (a)     8                               1.01     0.92    1.10
+IL-PT  (a)     6                               1.02     0.97    1.11
+IL-RD  (a)    10                               0.98     0.87    1.00
+IL-RS  (a)    10                               0.97     0.94    1.01
+IL-RT  (a)    10                               1.01     0.90    1.05
+   NE  (a)    23                               0.99     0.88    1.09
+IL-BR  (b)    13                               1.01     0.84    1.15
+IL-DG  (b)     6                               0.79     0.71    0.80
+IL-MC  (b)     8                               1.02     0.94    1.18
+IL-PT  (b)     6                               1.04     0.95    1.07
+IL-RD  (b)    10                               0.98     0.87    1.01
+IL-RS  (b)    10                               0.96     0.93    1.00
+IL-RT  (b)    10                               1.01     0.90    1.03
+   NE  (b)    23                               0.96     0.80    1.04
+
+Geometric anisotropy by REML, the large fields (azimuth of the major axis, clockwise from north; Stage 4 adopts it only where the AIC falls by more than 2; directional moment variograms are in curated/potash_variograms.parquet and notebook 02):
+field mean         family major axis ratio  ranges (m) change in AIC Stage 4 adopts      at bound
+IL-RD  (a)      spherical     80 deg  0.30    306 / 92          -8.6            yes             -
+IL-RS  (a)      spherical     90 deg  0.75   185 / 139          +2.2             no             -
+IL-RT  (a) matern nu 0.21    154 deg  0.47 2401 / 1119          -4.2            yes eff_range,tau
+   NE  (a)    exponential    177 deg  0.73   157 / 114          +2.1             no           tau
+IL-RD  (b)      spherical     82 deg  0.27    306 / 81          -7.9            yes             -
+IL-RS  (b)      spherical     90 deg  0.74   186 / 137          +2.1             no             -
+IL-RT  (b)      spherical     26 deg  0.78     84 / 65          -0.9             no           tau
+   NE  (b)      spherical    157 deg  0.86     75 / 65          +3.3             no             -
+
+Checkpoint 2 PASSED: 9/9 rules
 ```
 
 **Reported, not judged:**
@@ -446,11 +522,32 @@ Checkpoint 2 NOT COMPLETE: 6/6 built rules passed, 3 not built yet
   which does not fit λ above 1, so Stage 4's rules have to say what the
   sensitivity is there before Stage 4 touches the data. The λ under (a) also
   carries any trend, IL-RT's most.
+- **The baseline beside REML.** Where both see structure they agree at NE
+  (139 against 129 m under (a), 62 against 68 m under (b)) and at IL-RD
+  under (a) (220 against 237 m). Elsewhere they part: under (b) IL-RD's
+  baseline range is 139 m against REML's 245 m and IL-RT's 120 m against
+  73 m; under (a) IL-RS's is 291 m against 164 m. The baseline finds no
+  structure at IL-DG under either mean model or at IL-PT under (b), its
+  partial sill at the floor, where REML's own fits put the range at a bound;
+  at IL-BR under (a) it gives 159 m where REML's interval runs from bound to
+  bound. These are the comparisons D8 exists for; Stage 4 krigs with REML.
+- **Cressie–Hawkins** agrees with Matheron within a few per cent at every
+  field but IL-DG, where it is about a fifth lower under both mean models
+  (median ratio 0.80 and 0.79): a few large differences raise Matheron's
+  estimate there.
+- **Anisotropy.** At IL-RD the REML refit puts the major axis near east–west
+  (80° and 82°), the across-axis range about 0.3 of the along-axis one, and
+  lowers the AIC by 8.6 under (a) and 7.9 under (b): Stage 4 adopts it there.
+  At IL-RT it lowers the AIC by 4.2 under (a) (major axis 154°, ratio 0.47),
+  with the range at its bound, but not under (b) (−0.9), so under (a) it
+  most likely carries the trend; by the rule that comes with this check,
+  Stage 4 adopts it for (a) only. IL-RS (+2.2, +2.1) and NE (+2.1, +3.3) stay isotropic. In
+  the directional moment variograms (notebook 02), IL-RD's 0° direction
+  rises above the others beyond about 300 m under both mean models.
 
-Still to build in Stage 2: the moment baseline with its rules V1–V3, and
-what Stage 2 reports beside it: the directional variograms and, per large
-field, the REML fit with geometric anisotropy; the Cressie–Hawkins
-estimator; notebook 02.
+Stage 2 has passed. Two points carry forward to Stage 4's rules: what D3's
+sensitivity is where λ lies above 1, and IL-BR's low stocks, to be checked
+against the paper's site table.
 
 ### If it fails
 

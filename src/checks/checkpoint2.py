@@ -3,13 +3,14 @@
 The rules were fixed in RUNBOOK.md on 05.11.2026, before any variogram was
 computed, and each rule built so far is one function here: S1 and S2 for the
 stock table, R1 and R2 for the REML code, R3 and R4 for the fits and their
-record. V1-V3 belong to the moment baseline; until it is built they are
-reported as not built, and the checkpoint cannot pass.
+record, V1-V3 for the moment baseline. scikit-learn and scikit-gstat give
+the independent estimates R1, V2 and V3 compare with.
 
     python -m src.checks.checkpoint2    exit 0: every rule built and passed
                                         exit 1: a rule failed
                                         exit 2: raw/ or a curated table is missing
                                         exit 3: no rule failed, some not built yet
+                                                (none: every rule is built)
 
 Reads raw/ and curated/; makes no request. R2 fits 50 simulated fields and
 takes about half a minute.
@@ -24,16 +25,21 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from scipy import stats
+from scipy.spatial import cKDTree
 from scipy.spatial.distance import pdist
 
 try:                        # run as a module from the repository root
     from src.checks import checkpoint1 as C1
+    from src.transform import anisotropy as AN
     from src.transform import reml as M
     from src.transform import stocks as S
+    from src.transform import variograms as VG
 except ImportError:         # imported with src/checks and src/transform on sys.path (pytest)
+    import anisotropy as AN
     import checkpoint1 as C1
     import reml as M
     import stocks as S
+    import variograms as VG
 
 Rule = C1.Rule
 KEY = C1.KEY
@@ -57,7 +63,9 @@ R2_TRUTH = {"eff_range": 150.0, "tau": 0.3, "sill": 100.0}
 R2_TOL = 0.10
 R2_SEED = 20261105
 
-NOT_BUILT = ("V1 bins", "V2 independent estimate", "V3 baseline fits")
+NOT_BUILT: tuple = ()
+TOL_V2 = 1e-9                     # relative
+TOL_V3 = 0.01                     # relative, of the weighted sum of squares
 TOL_BOUND = 1e-9                  # relative: "inside the bounds"
 TOL_ABOVE = 1e-4                  # l_R units: a profile higher than its fit means the fit was not the maximum
 
@@ -265,11 +273,28 @@ def load_reml() -> dict:
     return {k: pd.read_parquet(p) for k, p in paths.items()}
 
 
-def r3_fits(families: pd.DataFrame, record: pd.DataFrame) -> Rule:
-    """Every fit converged inside its bounds; every D6 interval contains its
-    estimate, and no profile rose above the fit it started from."""
+def r3_fits(families: pd.DataFrame, record: pd.DataFrame,
+            anisotropic: Optional[pd.DataFrame] = None) -> Rule:
+    """Every fit converged inside its bounds, the anisotropic refits too; every
+    D6 interval contains its estimate, and no profile rose above the fit it
+    started from."""
     f, r = families, record
     problems = []
+    an_text = ""
+    if anisotropic is not None:
+        a = anisotropic
+        lo_, hi_ = 1.0 - TOL_BOUND, 1.0 + TOL_BOUND
+        bad = (~a["converged"].astype(bool)
+               | (a["eff_range_major"] < a["range_bound_lo"] * lo_) | (a["eff_range_major"] > a["range_bound_hi"] * hi_)
+               | (a["tau"] < M.TAU_BOUNDS[0] * lo_) | (a["tau"] > M.TAU_BOUNDS[1] * hi_)
+               | (a["ratio"] < AN.RATIO_BOUNDS[0] * lo_) | (a["ratio"] > AN.RATIO_BOUNDS[1] * hi_)
+               | (a["family"].eq("matern") & ((a["nu"] < M.NU_BOUNDS[0] * lo_) | (a["nu"] > M.NU_BOUNDS[1] * hi_))))
+        if bad.any():
+            problems.append(f"{int(bad.sum())} anisotropic refits not converged inside their bounds")
+        below = a["loglik"] < a["loglik_iso"] - 1e-6
+        if below.any():
+            problems.append(f"{int(below.sum())} anisotropic refits below their isotropic fit")
+        an_text = f", and so did the {len(a)} anisotropic refits, none below its isotropic fit"
     failed = f[~f["converged"].astype(bool)]
     if len(failed):
         problems.append(f"{len(failed)} fits did not converge: " + ", ".join(
@@ -294,7 +319,7 @@ def r3_fits(families: pd.DataFrame, record: pd.DataFrame) -> Rule:
     models = int((r["fit"] == "own").sum()) + len(r.loc[r["fit"] != "own", ["fit", "mean"]].drop_duplicates())
     return Rule("R3 fits", not problems, "; ".join(problems) or
                 f"all {len(f)} fits converged inside their bounds ({own} of one field, "
-                f"{len(f) - own} joint); the D6 intervals of all {models} chosen models contain "
+                f"{len(f) - own} joint){an_text}; the D6 intervals of all {models} chosen models contain "
                 f"their estimates, and no profile rose above its fit by more than {TOL_ABOVE:g}")
 
 
@@ -426,6 +451,184 @@ def model_diagnostics(reml: dict) -> dict:
     return tables
 
 
+# --- V1-V3: the moment baseline -------------------------------------------------------------
+
+def load_baseline() -> dict:
+    """The tables `python -m src.transform.variograms` and
+    `python -m src.transform.anisotropy` write."""
+    paths = {"variograms": VG.OUT, "fits": VG.OUT_FITS, "anisotropy": AN.OUT}
+    if not all(p.exists() for p in paths.values()):
+        raise NotThere("the baseline and the anisotropic fits: python -m src.transform.variograms, "
+                       "then python -m src.transform.anisotropy")
+    return {k: pd.read_parquet(p) for k, p in paths.items()}
+
+
+def _d8_edges(xy: np.ndarray) -> np.ndarray:
+    """D8's edges again, without variograms.edges: 0, w/2, 3w/2, ... up to
+    half the largest separation."""
+    w = float(np.median(cKDTree(xy).query(xy, k=2)[0][:, 1]))
+    half = float(pdist(xy).max()) / 2.0
+    e = np.r_[0.0, (np.arange(1, int(half / w + 0.5) + 2) - 0.5) * w]
+    return e[e <= half]
+
+
+def _values_direct(xy: np.ndarray, z: np.ndarray, mean: str) -> np.ndarray:
+    """The stocks, or their OLS residuals from the trend built as in R1."""
+    if mean == "constant":
+        return z
+    X = _design_direct(xy, "quadratic")
+    return z - X @ np.linalg.lstsq(X, z, rcond=None)[0]
+
+
+def _omni(vario: pd.DataFrame, site: str, mean: str) -> pd.DataFrame:
+    return vario[(vario["direction"] == "omni") & (vario["site"] == site)
+                 & (vario["mean"] == mean)].sort_values("bin")
+
+
+def v1_bins(vario: pd.DataFrame, stocks: pd.DataFrame) -> Rule:
+    """D8's edges; only, and all, bins of 30 pairs or more fitted; no lag
+    beyond half the field's largest separation."""
+    problems, count, fitted = [], 0, 0
+    for site, g in stocks.groupby("site"):
+        xy = g[["x", "y"]].to_numpy(float)
+        expected = _d8_edges(xy)
+        half = float(pdist(xy).max()) / 2.0
+        for m in M.MEANS:
+            b = _omni(vario, site, m)
+            if b.empty:
+                problems.append(f"{site} {m}: no baseline variogram")
+                continue
+            count += 1
+            lo, hi = b["lo"].to_numpy(float), b["hi"].to_numpy(float)
+            if (len(lo) != len(expected) - 1 or not np.allclose(lo, expected[:-1], rtol=1e-12, atol=1e-9)
+                    or not np.allclose(hi, expected[1:], rtol=1e-12, atol=1e-9)):
+                problems.append(f"{site} {m}: bin edges differ from D8's")
+            flags = b["fitted"].astype(bool).to_numpy()
+            if (flags != (b["pairs"].to_numpy() >= VG.MIN_PAIRS)).any():
+                problems.append(f"{site} {m}: the fitted bins are not those of {VG.MIN_PAIRS} pairs or more")
+            fitted += int(flags.sum())
+            if (b["hi"] > half * (1 + 1e-12)).any() or (b["lag"].dropna() > half).any():
+                problems.append(f"{site} {m}: a lag beyond half the largest separation")
+    return Rule("V1 bins", not problems, "; ".join(problems) or
+                f"{count} baseline variograms, every field and mean model, with D8's edges; only and all "
+                f"bins of {VG.MIN_PAIRS} pairs or more fitted ({fitted} bins); no lag beyond half its "
+                "field's largest separation")
+
+
+def v2_independent(vario: pd.DataFrame, stocks: pd.DataFrame) -> Rule:
+    """scikit-gstat's semivariances for the same coordinates, values and
+    edges, within 1e-9 relative, and the same pair counts."""
+    import warnings
+    import skgstat as skg
+    problems, worst, bins = [], 0.0, 0
+    for site, g in stocks.groupby("site"):
+        xy, z = g[["x", "y"]].to_numpy(float), g["stock"].to_numpy(float)
+        for m in M.MEANS:
+            b = _omni(vario, site, m)
+            upper = b["hi"].to_numpy(float)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                sk = skg.Variogram(xy, _values_direct(xy, z, m), estimator="matheron",
+                                   bin_func=list(upper), maxlag=float(upper[-1]), use_nugget=True,
+                                   fit_method=None)
+            counts = np.asarray(sk.bin_count, dtype=int)
+            ours = b["pairs"].to_numpy(int)
+            if len(counts) != len(ours) or (counts != ours).any():
+                problems.append(f"{site} {m}: pair counts differ from scikit-gstat's")
+                continue
+            ok = ours > 0
+            mine = b["gamma"].to_numpy(float)[ok]
+            worst = max(worst, float(np.max(np.abs(np.asarray(sk.experimental, float)[ok] - mine) / np.abs(mine))))
+            bins += int(ok.sum())
+    passed = not problems and worst <= TOL_V2
+    return Rule("V2 independent estimate", passed, "; ".join(problems) or
+                f"scikit-gstat {skg.__version__}, given the same coordinates, values and edges: the same "
+                f"pair counts, and semivariances within {worst:.1e} relative over {bins} bins "
+                f"(rule: {TOL_V2:g})")
+
+
+def v3_fits(fits: pd.DataFrame, vario: pd.DataFrame) -> Rule:
+    """Every baseline fit converged inside D8's bounds, and scikit-gstat's
+    model, fitted to the same bins with sigma = h / sqrt(N), reaches a
+    weighted sum of squares within 1 % of ours."""
+    import warnings
+    from scipy.optimize import curve_fit
+    from skgstat import models
+    problems, worst = [], 0.0
+    fitted = vario[(vario["direction"] == "omni") & vario["fitted"].astype(bool)]
+    for _, f in fits.iterrows():
+        b = fitted[(fitted["site"] == f["site"]) & (fitted["mean"] == f["mean"])].sort_values("bin")
+        h, gam, n = (b[c].to_numpy(float) for c in ("lag", "gamma", "pairs"))
+        floor = VG.C_FLOOR * float(gam.max())
+        a_max = VG.A_MAX_FACTOR * float(h.max())
+        if not (bool(f["converged"]) and f["nugget"] >= 0 and f["partial_sill"] >= floor * (1 - 1e-9)
+                and 0 < f["a"] <= a_max * (1 + 1e-9)):
+            problems.append(f"{f['site']} {f['mean']} {f['family']}: not converged inside D8's bounds")
+        scale = 1.0 if f["family"] == "spherical" else 3.0      # scikit-gstat's r: the range, or 3a
+        r_lo, r_hi = scale * VG.A_MIN_FACTOR * float(h.max()), scale * a_max
+        model = getattr(models, f["family"])
+        sigma = h / np.sqrt(n)
+        best = np.inf
+        for r0, c0, b0 in ((h.mean(), gam.mean(), 0.0), (h.max(), np.ptp(gam), gam.min()),
+                           (np.median(h), 0.5 * gam.max(), 0.5 * gam.min())):
+            p0 = [min(max(r0, r_lo), r_hi), max(c0, 2 * floor), max(b0, 0.0)]
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    popt, _ = curve_fit(model, h, gam, p0=p0, sigma=sigma, method="trf",
+                                        bounds=([r_lo, floor, 0.0], [r_hi, np.inf, np.inf]), max_nfev=20000)
+            except (RuntimeError, ValueError):
+                continue
+            res = (gam - np.asarray(model(h, *popt), float)) / sigma
+            best = min(best, float(res @ res))
+        rel = abs(best - float(f["wss"])) / float(f["wss"])
+        worst = max(worst, rel)
+        if rel > TOL_V3:
+            problems.append(f"{f['site']} {f['mean']} {f['family']}: scikit-gstat {best:.4g} against ours "
+                            f"{f['wss']:.4g}")
+    return Rule("V3 baseline fits", not problems, "; ".join(problems) or
+                f"all {len(fits)} baseline fits converged inside D8's bounds; scikit-gstat's models, fitted "
+                f"to the same bins with sigma = h/sqrt(N), reach weighted sums of squares within "
+                f"{worst:.2%} of ours (rule: {TOL_V3:.0%})")
+
+
+def baseline_diagnostics(base: dict, record: pd.DataFrame) -> dict:
+    """The baseline beside REML, Cressie-Hawkins beside Matheron, and the
+    anisotropic refits (reported, not judged)."""
+    label = {"constant": "(a)", "quadratic": "(b)"}
+    fits, vario, an = base["fits"], base["variograms"], base["anisotropy"]
+    own = record[record["fit"] == "own"].set_index(["site", "mean"])
+    rows = []
+    for _, f in fits[fits["chosen"].astype(bool)].sort_values(["mean", "site"]).iterrows():
+        x = own.loc[(f["site"], f["mean"])]
+        rows.append({"field": f["site"], "mean": label[f["mean"]],
+                     "baseline": f["family"], "range (m)": f"{f['eff_range']:.0f}",
+                     "nugget/sill": f"{f['tau']:.2f}",
+                     "at bound": "-" if f["at_bound"] == "none" else f["at_bound"],
+                     "REML": _family_text(x), "REML range (m)": _with_interval(x, "eff_range", 0),
+                     "REML nugget/sill": _with_interval(x, "tau", 2)})
+    tables = {"D8, the moment baseline beside REML (effective ranges as REML defines them):": pd.DataFrame(rows)}
+    rows = []
+    fitted = vario[(vario["direction"] == "omni") & vario["fitted"].astype(bool)]
+    for (site, m), g in fitted.groupby(["site", "mean"]):
+        ratio = g["gamma_ch"] / g["gamma"]
+        rows.append({"field": site, "mean": label[m], "bins": len(g),
+                     "Cressie-Hawkins / Matheron, median": f"{ratio.median():.2f}",
+                     "smallest": f"{ratio.min():.2f}", "largest": f"{ratio.max():.2f}"})
+    tables["Cressie-Hawkins beside Matheron over the fitted bins:"] = (
+        pd.DataFrame(rows).sort_values(["mean", "field"]))
+    rows = [{"field": x["site"], "mean": label[x["mean"]], "family": _family_text(x),
+             "major axis": f"{x['angle']:.0f} deg", "ratio": f"{x['ratio']:.2f}",
+             "ranges (m)": f"{x['eff_range_major']:.0f} / {x['eff_range_minor']:.0f}",
+             "change in AIC": f"{x['delta_aic']:+.1f}", "Stage 4 adopts": "yes" if x["adopt"] else "no",
+             "at bound": "-" if x["at_bound"] == "none" else x["at_bound"]}
+            for _, x in an.sort_values(["mean", "site"]).iterrows()]
+    tables["Geometric anisotropy by REML, the large fields (azimuth of the major axis, clockwise from "
+           "north; Stage 4 adopts it only where the AIC falls by more than 2; directional moment "
+           "variograms are in curated/potash_variograms.parquet and notebook 02):"] = pd.DataFrame(rows)
+    return tables
+
+
 # --- the checkpoint -------------------------------------------------------------------
 
 def run() -> tuple[list[Rule], dict]:
@@ -435,10 +638,14 @@ def run() -> tuple[list[Rule], dict]:
     rules = [s1_stocks(t), s2_arithmetic(t, meas)]
     rules.append(r1_likelihood(t) if rules[0].passed else
                  Rule("R1 likelihood", False, "not evaluated: S1 failed"))
-    rules += [r2_recovery(), r3_fits(reml["families"], reml["record"]),
-              r4_record(reml["record"], reml["pooling"], t)]
+    base = load_baseline()
+    rules += [r2_recovery(), r3_fits(reml["families"], reml["record"], base["anisotropy"]),
+              r4_record(reml["record"], reml["pooling"], t),
+              v1_bins(base["variograms"], t), v2_independent(base["variograms"], t),
+              v3_fits(base["fits"], base["variograms"])]
     tables = {"Stocks in 0-30 cm per field, Mg C/ha:": stock_diagnostics(t)}
     tables.update(model_diagnostics(reml))
+    tables.update(baseline_diagnostics(base, reml["record"]))
     return rules, tables
 
 
@@ -454,8 +661,8 @@ def report(rules: list[Rule], tables: Optional[dict], when: Optional[dt.datetime
             lines += ["", title, table.to_string(index=False)]
     passed = sum(r.passed for r in rules)
     verdict = "FAILED" if passed < len(rules) else ("NOT COMPLETE" if NOT_BUILT else "PASSED")
-    lines += ["", f"Checkpoint 2 {verdict}: {passed}/{len(rules)} built rules passed, "
-                  f"{len(NOT_BUILT)} not built yet"]
+    lines += ["", f"Checkpoint 2 {verdict}: {passed}/{len(rules)} "
+                  + (f"built rules passed, {len(NOT_BUILT)} not built yet" if NOT_BUILT else "rules")]
     return "\n".join(lines)
 
 

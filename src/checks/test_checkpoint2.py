@@ -69,9 +69,9 @@ def test_reml_direct_agrees_with_the_contrast_density():
     assert C2.reml_direct(V, X, z) == pytest.approx(ref, rel=1e-9)
 
 
-def test_an_incomplete_checkpoint_does_not_pass():
-    text = C2.report([C2.Rule("S1 stocks", True, "ok")], None)
-    assert "NOT COMPLETE" in text and "V1 bins: not built yet" in text
+def test_the_verdict():
+    assert "Checkpoint 2 FAILED" in C2.report([C2.Rule("S1 stocks", False, "no")], None)
+    assert "Checkpoint 2 PASSED: 1/1 rules" in C2.report([C2.Rule("S1 stocks", True, "ok")], None)
 
 
 def test_missing_inputs_exit_2(monkeypatch):
@@ -126,3 +126,42 @@ def test_the_reported_tables(small_stage):
     tables = C2.model_diagnostics({"record": record, "families": families, "pooling": pooling,
                                    "boxcox": boxcox})
     assert len(next(iter(tables.values()))) == 6 and any(k.startswith("D3") for k in tables)
+
+
+@pytest.fixture(scope="module")
+def baseline(small_stage):
+    import anisotropy as AN
+    import variograms as VG
+    t, (record, *_) = small_stage
+    vario, fits = VG.run_stage(t)
+    return t, vario, fits, AN.run_stage(t, record, large=("A", "B"))
+
+
+def test_v1_to_v3_pass_on_hand_made_fields(baseline):
+    t, vario, fits, _ = baseline
+    assert C2.v1_bins(vario, t).passed
+    assert C2.v2_independent(vario, t).passed
+    assert C2.v3_fits(fits, vario).passed
+
+
+def test_v1_v2_v3_catch_a_moved_edge_a_wrong_semivariance_and_a_worse_fit(baseline):
+    t, vario, fits, _ = baseline
+    moved = vario.copy()
+    moved.loc[moved.index[1], "hi"] *= 1.01
+    assert not C2.v1_bins(moved, t).passed
+    wrong = vario.copy()
+    k = wrong.index[(wrong["direction"] == "omni") & (wrong["pairs"] > 0)][0]
+    wrong.loc[k, "gamma"] *= 1.001
+    assert not C2.v2_independent(wrong, t).passed
+    worse = fits.copy()
+    worse.loc[0, "wss"] *= 1.5
+    assert not C2.v3_fits(worse, vario).passed
+
+
+def test_r3_covers_the_anisotropic_refits(small_stage, baseline):
+    _, (record, families, *_) = small_stage
+    an = baseline[3]
+    assert C2.r3_fits(families, record, an).passed
+    broken = an.copy()
+    broken.loc[0, "loglik"] = broken.loc[0, "loglik_iso"] - 1.0
+    assert not C2.r3_fits(families, record, broken).passed
