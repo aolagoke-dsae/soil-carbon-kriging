@@ -316,7 +316,7 @@ def r4_record(record: pd.DataFrame, pooling: pd.DataFrame, stocks: pd.DataFrame,
         problems.append(f"{len(own)} rows of own fits, not one per field and mean model")
     matern = r["family"].eq("matern")
     empty = (int(r.drop(columns=["nu"]).isna().sum().sum())
-             + int((r.select_dtypes(include="object") == "").sum().sum())
+             + int((r == "").sum().sum())       # pandas 2 and 3 alike, without select_dtypes
              + int((matern & r["nu"].isna()).sum()))
     if empty:
         problems.append(f"{empty} empty cells")

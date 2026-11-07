@@ -106,6 +106,9 @@ def test_r4_catches_an_empty_cell_a_missing_row_and_a_wrong_decision(small_stage
     r = record.copy()
     r.loc[0, "aic"] = np.nan
     assert not C2.r4_record(r, pooling, t, **args).passed
+    r = record.copy()
+    r.loc[0, "at_bound"] = ""
+    assert not C2.r4_record(r, pooling, t, **args).passed
     assert not C2.r4_record(record.iloc[1:], pooling, t, **args).passed
     r = record.copy()
     small = (r["fit"] == "own") & (r["site"] == "C")

@@ -331,6 +331,11 @@ depends on the stocks:
 
 Run on Linux (Python 3.10.12): the REML run in two parts of about a minute
 each, the checkpoint in 49 seconds; 96 tests pass, 47 of them from Stage 1.
+The author then ran both on Windows (Python 3.14.8, pandas 3) and got the
+same rules and tables at 21:18:44Z. The REML run there took all 139 steps
+from the cache this run had written, so on Windows the fits were read, not
+recomputed; R1 and R2 ran afresh and gave the same numbers. Deleting
+`curated/reml_cache` first would make the fits a Windows computation too.
 
 ```text
 Checkpoint 2, run 2026-11-07T21:04:21Z
@@ -446,6 +451,18 @@ Still to build in Stage 2: the moment baseline with its rules V1–V3, and
 what Stage 2 reports beside it: the directional variograms and, per large
 field, the REML fit with geometric anisotropy; the Cressie–Hawkins
 estimator; notebook 02.
+
+### If it fails
+
+**07.11.2026: `ImportError: Unable to find a usable engine` on Windows.** An
+environment set up for Stage 1 lacks pyarrow, and scikit-learn, which R1
+needs: `python -m pip install -r requirements.txt` adds both.
+
+**07.11.2026: a `Pandas4Warning` from R4 under pandas 3.** R4's test for
+empty text cells used `select_dtypes(include="object")`, which pandas 3
+still lets cover its new string columns but warns it will stop doing. It
+now compares every cell with an empty string, which works the same under
+pandas 2 and 3. The verdict did not change.
 
 ### References for Stage 2
 
