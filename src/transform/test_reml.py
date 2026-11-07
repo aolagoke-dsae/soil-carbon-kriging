@@ -95,3 +95,88 @@ def test_a_design_that_cannot_carry_the_trend_is_refused():
     xy = np.c_[np.arange(10.0), np.zeros(10)]          # points on a line: y, xy, y2 vanish
     with pytest.raises(ValueError):
         M.Field.of(xy, np.ones(10), "quadratic")
+
+
+# --- joint fits, D6 intervals, D3, the stage run --------------------------------------------
+
+import dataclasses
+import time
+
+import pandas as pd
+
+
+def test_a_joint_fit_of_one_field_is_its_own_fit():
+    f = field(n=50)
+    own, joint = M.fit(f, "exponential"), M.fit([f], "exponential")
+    assert joint.loglik == pytest.approx(own.loglik, abs=1e-9) and joint.k == own.k == 3
+
+
+def test_a_joint_fit_shares_the_correlation_and_keeps_a_sill_per_field():
+    f1, f2 = field(n=50, seed=1), field(n=40, seed=2)
+    j = M.fit([f1, f2], "exponential")
+    assert len(j.sills) == 2 and j.k == 4 and j.n == 90
+    total = sum(M.reml_profile(f, "exponential", j.eff_range, j.tau)[0] for f in (f1, f2))
+    assert j.loglik == pytest.approx(total, rel=1e-12)
+    assert j.loglik <= M.fit(f1, "exponential").loglik + M.fit(f2, "exponential").loglik + 1e-6
+
+
+@pytest.mark.parametrize("parameter", ["eff_range", "tau"])
+def test_a_profile_interval_holds_the_estimate_and_its_ends_lie_on_the_threshold(parameter):
+    rng = np.random.default_rng(5)
+    xy, z = M.simulate(rng, 100, (400.0, 300.0), "exponential", 100.0, 120.0, 0.3)
+    f = M.Field.of(xy, z, "constant")
+    fit = M.fit(f, "exponential")
+    iv = M.profile_interval(f, fit, parameter)
+    assert iv.lo.value <= iv.estimate <= iv.hi.value and iv.above_fit < 1e-4
+    for end in (iv.lo, iv.hi):
+        if not end.open:
+            drop = fit.loglik - M.profile_loglik(f, fit, parameter, end.value)
+            assert drop == pytest.approx(M.CHI2_95_1 / 2, abs=0.01)
+
+
+def test_boxcox_at_one_is_the_original_scale():
+    f = field(n=50)
+    fit = M.fit(f, "exponential")
+    g = dataclasses.replace(f, z=M.boxcox(f.z, 1.0))
+    assert M.reml_profile(g, "exponential", fit.eff_range, fit.tau)[0] == pytest.approx(fit.loglik, abs=1e-9)
+
+
+def test_the_boxcox_profile_finds_a_lognormal_field():
+    rng = np.random.default_rng(11)
+    xy, g = M.simulate(rng, 80, (300.0, 200.0), "exponential", 0.5, 80.0, 0.3)
+    f = M.Field.of(xy, np.exp(3.0 + g), "constant")
+    bc = M.boxcox_profile(f, M.fit(f, "exponential"))
+    assert bc.lo <= bc.lam <= bc.hi and bc.excludes_1 and bc.loglik >= bc.loglik_at_1
+
+
+def test_the_stage_run_marks_one_model_per_field_and_mean_model_for_stage_4(small_stage):
+    t, (record, families, pooling, boxcox) = small_stage
+    assert list(record.columns) == M.RECORD_COLUMNS
+    s4 = record[record["for_stage4"]]
+    assert sorted(zip(s4["site"], s4["mean"])) == sorted((s, m) for s in "ABC" for m in M.MEANS)
+    assert sorted(pooling["mean"]) == sorted(M.MEANS) and len(boxcox) == 3
+    own = record[record["fit"] == "own"]
+    for m in M.MEANS:
+        p = pooling[pooling["mean"] == m].iloc[0]
+        large = own[(own["mean"] == m) & own["site"].isin(["A", "B"])]
+        assert p["delta_aic"] == pytest.approx(p["aic_joint"] - large["aic"].sum())
+        small = own[(own["mean"] == m) & (own["site"] == "C")]
+        assert (small["takes"] == ("shared" if p["pooled"] else "own")).all()
+
+
+def test_a_cached_run_resumes_and_gives_the_same_record(tmp_path):
+    rng = np.random.default_rng(4)
+    rows = []
+    for site in ("A", "B"):
+        xy, z = M.simulate(rng, 30, (200.0, 200.0), "exponential", 25.0, 80.0, 0.3, mean=50.0)
+        rows += [{"site": site, "location_id": str(i), "x": xy[i, 0], "y": xy[i, 1], "stock": z[i]}
+                 for i in range(30)]
+    t = pd.DataFrame(rows)
+    args = dict(families=("exponential",), large=("A", "B"), small=())
+    with pytest.raises(M.OutOfTime):
+        M.run_stage(t, cache=M.Cache(tmp_path / "late", deadline=time.monotonic() - 1.0), **args)
+    first, again = M.Cache(tmp_path / "c"), M.Cache(tmp_path / "c")
+    r1 = M.run_stage(t, cache=first, **args)[0]
+    r2 = M.run_stage(t, cache=again, **args)[0]
+    assert first.computed > 0 and again.computed == 0 and again.hits == first.computed
+    pd.testing.assert_frame_equal(r1, r2)

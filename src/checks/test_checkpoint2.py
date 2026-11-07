@@ -71,7 +71,7 @@ def test_reml_direct_agrees_with_the_contrast_density():
 
 def test_an_incomplete_checkpoint_does_not_pass():
     text = C2.report([C2.Rule("S1 stocks", True, "ok")], None)
-    assert "NOT COMPLETE" in text and "R3 fits: not built yet" in text
+    assert "NOT COMPLETE" in text and "V1 bins: not built yet" in text
 
 
 def test_missing_inputs_exit_2(monkeypatch):
@@ -79,3 +79,47 @@ def test_missing_inputs_exit_2(monkeypatch):
         raise C2.NotThere("the stock table")
     monkeypatch.setattr(C2, "load", missing)
     assert C2.main([]) == 2
+
+
+def test_r3_and_r4_pass_on_a_stage_run(small_stage):
+    t, (record, families, pooling, _) = small_stage
+    assert C2.r3_fits(families, record).passed
+    assert C2.r4_record(record, pooling, t, large=("A", "B"), small=("C",)).passed
+
+
+def test_r3_catches_a_fit_that_did_not_converge_and_an_interval_without_its_estimate(small_stage):
+    t, (record, families, pooling, _) = small_stage
+    f = families.copy()
+    f.loc[0, "converged"] = False
+    assert not C2.r3_fits(f, record).passed
+    r = record.copy()
+    r.loc[0, "eff_range_lo"] = r.loc[0, "eff_range"] * 1.01
+    assert not C2.r3_fits(families, r).passed
+    r = record.copy()
+    r.loc[0, "profile_above_fit"] = 0.01
+    assert not C2.r3_fits(families, r).passed
+
+
+def test_r4_catches_an_empty_cell_a_missing_row_and_a_wrong_decision(small_stage):
+    t, (record, families, pooling, _) = small_stage
+    args = dict(large=("A", "B"), small=("C",))
+    r = record.copy()
+    r.loc[0, "aic"] = np.nan
+    assert not C2.r4_record(r, pooling, t, **args).passed
+    assert not C2.r4_record(record.iloc[1:], pooling, t, **args).passed
+    r = record.copy()
+    small = (r["fit"] == "own") & (r["site"] == "C")
+    r.loc[small, "takes"] = r.loc[small, "takes"].map({"own": "shared", "shared": "own"})
+    assert not C2.r4_record(r, pooling, t, **args).passed
+
+
+@pytest.mark.parametrize("tau, label", [(0.24, "strong"), (0.25, "moderate"), (0.75, "moderate"), (0.76, "weak")])
+def test_cambardella_classes(tau, label):
+    assert C2.cambardella(tau) == label
+
+
+def test_the_reported_tables(small_stage):
+    t, (record, families, pooling, boxcox) = small_stage
+    tables = C2.model_diagnostics({"record": record, "families": families, "pooling": pooling,
+                                   "boxcox": boxcox})
+    assert len(next(iter(tables.values()))) == 6 and any(k.startswith("D3") for k in tables)

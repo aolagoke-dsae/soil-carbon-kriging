@@ -2,13 +2,13 @@
 
 The rules were fixed in RUNBOOK.md on 05.11.2026, before any variogram was
 computed, and each rule built so far is one function here: S1 and S2 for the
-stock table, R1 and R2 for the REML code. R3, R4 and V1-V3 belong to the
-fits, their record and the moment baseline; until those are built they are
+stock table, R1 and R2 for the REML code, R3 and R4 for the fits and their
+record. V1-V3 belong to the moment baseline; until it is built they are
 reported as not built, and the checkpoint cannot pass.
 
     python -m src.checks.checkpoint2    exit 0: every rule built and passed
                                         exit 1: a rule failed
-                                        exit 2: raw/ or the stock table is missing
+                                        exit 2: raw/ or a curated table is missing
                                         exit 3: no rule failed, some not built yet
 
 Reads raw/ and curated/; makes no request. R2 fits 50 simulated fields and
@@ -57,11 +57,13 @@ R2_TRUTH = {"eff_range": 150.0, "tau": 0.3, "sill": 100.0}
 R2_TOL = 0.10
 R2_SEED = 20261105
 
-NOT_BUILT = ("R3 fits", "R4 record", "V1 bins", "V2 independent estimate", "V3 baseline fits")
+NOT_BUILT = ("V1 bins", "V2 independent estimate", "V3 baseline fits")
+TOL_BOUND = 1e-9                  # relative: "inside the bounds"
+TOL_ABOVE = 1e-4                  # l_R units: a profile higher than its fit means the fit was not the maximum
 
 
 class NotThere(Exception):
-    """raw/ or the stock table is not there yet."""
+    """raw/ or a curated table is not there yet."""
 
 
 def load() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -252,29 +254,204 @@ def stock_diagnostics(t: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# --- R3, R4: the fits and their record -----------------------------------------------------
+
+def load_reml() -> dict:
+    """The record and the three tables `python -m src.transform.reml` writes."""
+    paths = {"record": M.OUT, "families": M.OUT_FAMILIES, "pooling": M.OUT_POOLING,
+             "boxcox": M.OUT_BOXCOX}
+    if not all(p.exists() for p in paths.values()):
+        raise NotThere("the REML record: python -m src.transform.reml")
+    return {k: pd.read_parquet(p) for k, p in paths.items()}
+
+
+def r3_fits(families: pd.DataFrame, record: pd.DataFrame) -> Rule:
+    """Every fit converged inside its bounds; every D6 interval contains its
+    estimate, and no profile rose above the fit it started from."""
+    f, r = families, record
+    problems = []
+    failed = f[~f["converged"].astype(bool)]
+    if len(failed):
+        problems.append(f"{len(failed)} fits did not converge: " + ", ".join(
+            f"{x['site']} {x['mean']} {x['family']}" for _, x in failed.iterrows()))
+    lo, hi = 1.0 - TOL_BOUND, 1.0 + TOL_BOUND
+    nu = f["nu"]
+    outside = ((f["eff_range"] < f["range_bound_lo"] * lo) | (f["eff_range"] > f["range_bound_hi"] * hi)
+               | (f["tau"] < M.TAU_BOUNDS[0] * lo) | (f["tau"] > M.TAU_BOUNDS[1] * hi)
+               | (f["family"].eq("matern") & ((nu < M.NU_BOUNDS[0] * lo) | (nu > M.NU_BOUNDS[1] * hi))))
+    if outside.any():
+        problems.append(f"{int(outside.sum())} fits outside their bounds")
+    without = ((r["eff_range"] < r["eff_range_lo"]) | (r["eff_range"] > r["eff_range_hi"])
+               | (r["tau"] < r["tau_lo"]) | (r["tau"] > r["tau_hi"]))
+    if without.any():
+        problems.append(f"{int(without.sum())} record rows whose D6 interval does not contain the estimate")
+    above = r["profile_above_fit"] > TOL_ABOVE
+    if above.any():
+        problems.append(f"{int(above.sum())} record rows whose profile rose up to "
+                        f"{r.loc[above, 'profile_above_fit'].max():.2g} above the fit, which was "
+                        "therefore not the maximum")
+    own = int((f["fit"] == "own").sum())
+    models = int((r["fit"] == "own").sum()) + len(r.loc[r["fit"] != "own", ["fit", "mean"]].drop_duplicates())
+    return Rule("R3 fits", not problems, "; ".join(problems) or
+                f"all {len(f)} fits converged inside their bounds ({own} of one field, "
+                f"{len(f) - own} joint); the D6 intervals of all {models} chosen models contain "
+                f"their estimates, and no profile rose above its fit by more than {TOL_ABOVE:g}")
+
+
+def r4_record(record: pd.DataFrame, pooling: pd.DataFrame, stocks: pd.DataFrame,
+              large=M.LARGE, small=M.SMALL) -> Rule:
+    """The record holds what R4 lists, and the small fields take the
+    parameters D7's comparison gives them."""
+    r = record
+    absent = [c for c in M.RECORD_COLUMNS if c not in r.columns]
+    if absent:
+        return Rule("R4 record", False, f"columns missing: {absent}")
+    sites = sorted(stocks["site"].unique())
+    large = [s for s in large if s in sites]
+    small = [s for s in small if s in sites]
+    wanted = sorted((s, m) for s in sites for m in M.MEANS)
+    problems = []
+    own = r[r["fit"] == "own"]
+    if sorted(zip(own["site"], own["mean"])) != wanted:
+        problems.append(f"{len(own)} rows of own fits, not one per field and mean model")
+    matern = r["family"].eq("matern")
+    empty = (int(r.drop(columns=["nu"]).isna().sum().sum())
+             + int((r.select_dtypes(include="object") == "").sum().sum())
+             + int((matern & r["nu"].isna()).sum()))
+    if empty:
+        problems.append(f"{empty} empty cells")
+    if (~matern & r["nu"].notna()).any():
+        problems.append("nu given for a family other than the Matern")
+    counts = stocks.groupby("site").size()
+    wrong = int((r["n"].to_numpy() != r["site"].map(counts).to_numpy()).sum())
+    if wrong:
+        problems.append(f"{wrong} rows whose number of stocks differs from the stock table")
+    said = []
+    for m in M.MEANS:
+        joint = r[(r["fit"] == "joint_large") & (r["mean"] == m)]
+        if sorted(joint["site"]) != sorted(large) or joint["aic"].nunique() != 1:
+            problems.append(f"the joint fit of the large fields under the {m} mean is missing or incomplete")
+            continue
+        own_m = own[own["mean"] == m]
+        delta = float(joint["aic"].iloc[0]) - float(own_m.loc[own_m["site"].isin(large), "aic"].sum())
+        pooled = delta <= M.POOL_AIC
+        refit = r[(r["fit"] == "joint_all") & (r["mean"] == m)]
+        if pooled and small and sorted(refit["site"]) != sorted(large + small):
+            problems.append(f"sharing holds under the {m} mean, but the refit on all fields is missing")
+        if not pooled and len(refit):
+            problems.append(f"a refit on all fields under the {m} mean, which D7 does not call for")
+        takes = "shared" if pooled else "own"
+        if not (own_m.loc[own_m["site"].isin(small), "takes"] == takes).all():
+            problems.append(f"under the {m} mean the small fields should take {takes} parameters")
+        if not (own_m.loc[own_m["site"].isin(large), "takes"] == "own").all():
+            problems.append(f"under the {m} mean a large field does not keep its own fit")
+        p = pooling[pooling["mean"] == m]
+        if len(p) != 1 or bool(p["pooled"].iloc[0]) != pooled:
+            problems.append(f"the pooling table disagrees with the record under the {m} mean")
+        said.append(f"{m} mean, sharing {delta:+.1f} AIC: the small fields take {takes} parameters")
+    stage4 = r[r["for_stage4"].astype(bool)]
+    if sorted(zip(stage4["site"], stage4["mean"])) != wanted:
+        problems.append("not exactly one model per field and mean model is marked for Stage 4")
+    return Rule("R4 record", not problems, "; ".join(problems) or
+                f"{len(own)} rows, one per field and mean model, and {int((r['fit'] != 'own').sum())} "
+                f"rows for D7's joint fits; no empty cell but nu outside the Matern; the numbers of "
+                f"stocks as in the stock table; {'; '.join(said)}; one model per field and mean "
+                f"model marked for Stage 4")
+
+
+def cambardella(tau: float) -> str:
+    """Spatial dependence from the nugget-to-sill ratio (Cambardella et al. 1994)."""
+    return "strong" if tau < 0.25 else ("moderate" if tau <= 0.75 else "weak")
+
+
+def _with_interval(x, name: str, digits: int) -> str:
+    """'estimate [lo, hi]', an end that is the bound starred."""
+    opened = set(str(x["interval_open"]).split(","))
+    lo = f"{x[name + '_lo']:.{digits}f}{'*' if name + '_lo' in opened else ''}"
+    hi = f"{x[name + '_hi']:.{digits}f}{'*' if name + '_hi' in opened else ''}"
+    return f"{x[name]:.{digits}f} [{lo}, {hi}]"
+
+
+def _family_text(x) -> str:
+    return x["family"] + (f" nu {x['nu']:.2f}" if x["family"] == "matern" else "")
+
+
+def model_diagnostics(reml: dict) -> dict:
+    """The REML run's tables, as Checkpoint 2 reports them (not judged)."""
+    r, fam, pool, bc = reml["record"], reml["families"], reml["pooling"], reml["boxcox"]
+    label = {"constant": "(a)", "quadratic": "(b)"}
+    own_fits = fam[fam["fit"] == "own"]
+    rows = []
+    for _, x in r[r["fit"] == "own"].sort_values(["mean", "site"]).iterrows():
+        aics = own_fits.loc[(own_fits["site"] == x["site"]) & (own_fits["mean"] == x["mean"]), "aic"].sort_values()
+        rows.append({"field": x["site"], "mean": label[x["mean"]], "family": _family_text(x),
+                     "next family": f"+{aics.iloc[1] - aics.iloc[0]:.1f} AIC" if len(aics) > 1 else "-",
+                     "nugget": f"{x['nugget']:.1f}", "partial sill": f"{x['partial_sill']:.1f}",
+                     "effective range (m)": _with_interval(x, "eff_range", 0),
+                     "nugget/sill": f"{_with_interval(x, 'tau', 2)} {cambardella(x['tau'])}",
+                     "at bound": "-" if x["at_bound"] == "none" else x["at_bound"],
+                     "takes": x["takes"]})
+    tables = {"REML models, (a) constant and (b) second-order mean; 95 % profile intervals, "
+              "* where an end is the bound:": pd.DataFrame(rows)}
+    rows = []
+    for _, p in pool.iterrows():
+        joint = r[(r["fit"] == "joint_large") & (r["mean"] == p["mean"])]
+        own = r[(r["fit"] == "own") & (r["mean"] == p["mean"])].set_index("site")["eff_range"]
+        x = joint.iloc[0]
+        rows.append({"mean": label[p["mean"]], "shared": _family_text(x),
+                     "AIC jointly": f"{p['aic_joint']:.1f}", "AIC own, summed": f"{p['aic_own']:.1f}",
+                     "difference": f"{p['delta_aic']:+.1f}",
+                     "small fields take": "shared" if p["pooled"] else "own",
+                     "shared range (m)": _with_interval(x, "eff_range", 0),
+                     "shared nugget/sill": _with_interval(x, "tau", 2),
+                     "shared/own range": ", ".join(f"{s} {x['eff_range'] / own[s]:.2f}" for s in joint["site"])})
+    tables["D7, the large fields' correlation parameters shared:"] = pd.DataFrame(rows)
+    refits = r[r["fit"] == "joint_all"]
+    if len(refits):
+        rows = []
+        for m, g in refits.groupby("mean"):
+            x = g.iloc[0]
+            rows.append({"mean": label[m], "family": _family_text(x),
+                         "range (m)": _with_interval(x, "eff_range", 0),
+                         "nugget/sill": _with_interval(x, "tau", 2),
+                         "small fields' sills": ", ".join(f"{s} {v:.1f}" for s, v in
+                                                          zip(g["site"], g["sill"]) if s in M.SMALL)})
+        tables["D7, the shared parameters re-estimated from all eight fields:"] = pd.DataFrame(rows)
+    rows = [{"field": b["site"], "family": b["family"],
+             "lambda": f"{b['lambda']:.2f} [{b['lambda_lo']:.2f}{'*' if b['lo_open'] else ''}, "
+                       f"{b['lambda_hi']:.2f}{'*' if b['hi_open'] else ''}]",
+             "interval excludes 1": "yes" if b["excludes_1"] else "no"}
+            for _, b in bc.iterrows()]
+    tables["D3, the Box-Cox lambda under mean model (a), 95 % profile interval:"] = pd.DataFrame(rows)
+    return tables
+
+
 # --- the checkpoint -------------------------------------------------------------------
 
-def run() -> tuple[list[Rule], pd.DataFrame]:
-    """Every built rule, and the stock diagnostics. Raises NotThere."""
+def run() -> tuple[list[Rule], dict]:
+    """Every built rule, and the tables reported beside them. Raises NotThere."""
     t, meas = load()
+    reml = load_reml()
     rules = [s1_stocks(t), s2_arithmetic(t, meas)]
     rules.append(r1_likelihood(t) if rules[0].passed else
                  Rule("R1 likelihood", False, "not evaluated: S1 failed"))
-    rules.append(r2_recovery())
-    return rules, stock_diagnostics(t)
+    rules += [r2_recovery(), r3_fits(reml["families"], reml["record"]),
+              r4_record(reml["record"], reml["pooling"], t)]
+    tables = {"Stocks in 0-30 cm per field, Mg C/ha:": stock_diagnostics(t)}
+    tables.update(model_diagnostics(reml))
+    return rules, tables
 
 
-def report(rules: list[Rule], diagnostics: Optional[pd.DataFrame],
-           when: Optional[dt.datetime] = None) -> str:
+def report(rules: list[Rule], tables: Optional[dict], when: Optional[dt.datetime] = None) -> str:
     """The text Checkpoint 2 prints, and the RUNBOOK records."""
     when = when or dt.datetime.now(dt.timezone.utc)
     lines = [f"Checkpoint 2, run {when:%Y-%m-%dT%H:%M:%SZ}", ""]
     lines += [f"{'PASS' if r.passed else 'FAIL'}  {r.rule}: {r.detail}" for r in rules]
     lines += [f"----  {name}: not built yet" for name in NOT_BUILT]
-    if diagnostics is not None:
-        lines += ["", "Stocks in 0-30 cm per field, Mg C/ha (reported, not judged; "
-                      "the Box-Cox profile of D3 comes with the fits):",
-                  diagnostics.to_string(index=False)]
+    if tables:
+        lines += ["", "Reported, not judged:"]
+        for title, table in tables.items():
+            lines += ["", title, table.to_string(index=False)]
     passed = sum(r.passed for r in rules)
     verdict = "FAILED" if passed < len(rules) else ("NOT COMPLETE" if NOT_BUILT else "PASSED")
     lines += ["", f"Checkpoint 2 {verdict}: {passed}/{len(rules)} built rules passed, "

@@ -13,7 +13,7 @@ Plan, not to this file.
 | Stage | What | Status |
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
-| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **in build**: rules fixed 05.11.2026; the stock table and the REML code pass S1, S2, R1 and R2 (07.11.2026); R3, R4 and V1–V3 not built |
+| 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **in build**: rules fixed 05.11.2026; S1, S2 and R1–R4 pass (07.11.2026): the stock table, the REML code and the fits; V1–V3, the moment baseline, not built |
 | 3 | Terrain covariates for the eight fields: USGS 3DEP 10 m elevation and its derivatives, extracted through Earth Engine, the values committed | not yet specified |
 | 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
@@ -250,14 +250,24 @@ Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3),
 
 ### Built so far
 
-**07.11.2026: the stock table and the REML code; S1, S2, R1 and R2 pass.**
-R3, R4 and V1–V3 are not built, so Checkpoint 2 exits 3 (no rule failed,
-some not built) and Stage 2 has not passed. Two of the four commands exist:
+**07.11.2026: the stock table, the REML code and the fits; S1, S2 and R1–R4
+pass.** V1–V3, the moment baseline, are not built, so Checkpoint 2 exits 3
+(no rule failed, some not built) and Stage 2 has not passed. Three of the
+four commands exist:
 
 ```bash
 python -m src.transform.stocks       # curated/potash_stocks_0_30.parquet
+python -m src.transform.reml         # curated/potash_reml.parquet and three tables beside it
 python -m src.checks.checkpoint2     # exit 0 passed, 1 a rule failed, 2 inputs missing, 3 not all built
 ```
+
+`python -m src.transform.reml` takes about two minutes. Each of its steps is
+cached in `curated/reml_cache/`, keyed by the module's source and the step's
+data, so `--budget SECONDS` can stop it early (exit 4) and a second run
+continues where it stopped; a changed input or a changed module starts
+afresh. Beside the record it writes every family's fit
+(`potash_reml_families.parquet`), the pooling comparison
+(`potash_pooling.parquet`) and the Box-Cox profiles (`potash_boxcox.parquet`).
 
 `requirements.txt` now has pyproj, pyarrow and scikit-learn; scikit-gstat
 comes with V2 and V3. `curated/` is not committed: the transforms rebuild it
@@ -276,7 +286,7 @@ depends on the stocks:
   centres them differently to test that.
 - **The sill is profiled out** in closed form, so the search runs over the
   effective range, the nugget-to-sill ratio and, for the Matérn, ν.
-- **Bounds**, against which R3 will judge the fits: the effective range from
+- **Bounds**, against which R3 judges the fits: the effective range from
   half the smallest separation to three times the largest; the
   nugget-to-sill ratio from 10⁻⁶ to 1, so that a smaller nugget counts as
   none and the correlation matrix stays invertible; ν from 0.2 to 3 (D5).
@@ -295,24 +305,49 @@ depends on the stocks:
   `reml.py`. For the exponential and the spherical it uses
   `reml.covariance`, whose correlations the unit tests check against closed
   forms.
+- **Joint fits (D7).** The fields are independent, so a joint restricted
+  likelihood is the sum of the fields' own, each with its own mean and
+  maximised over its own sill; k counts the shared parameters and one sill
+  per field. The effective range may run over the union of the fields'
+  bounds. The large fields' joint family is the one with the lowest joint
+  AIC, and the refit on all eight fields keeps it.
+- **Profile intervals (D6).** From the estimate outward, in steps of 0.1 in
+  log a or 0.03 in the nugget-to-sill ratio, each step 1.6 times the last,
+  the other parameters re-estimated at every step; then Brent's method finds
+  where the profile falls χ²₁(0.95)/2 below the maximum (to 10⁻⁴ in log a,
+  10⁻⁵ in the ratio). An end the profile does not reach inside the bounds
+  is the bound, and the record says so (`interval_open`). A profile rising
+  above its fit by more than 10⁻⁴ would mean the fit missed the maximum, and
+  R3 fails on it.
+- **The Box-Cox profile (D3)** is taken under mean model (a) and the family
+  (a) chose, with the Jacobian term (λ − 1) Σ log z: its maximum on a grid
+  from −1 to 3, refined between neighbours (out to −2 or 4 at the grid's
+  ends), and its interval's ends sought between −2 and 4.
+- **The record** has one row per field and mean model for its own fit, and
+  one row per member field for each joint fit, with that field's own sill.
+  `takes` says whether a field's own fit or the shared parameters apply, and
+  `for_stage4` marks the one model per field and mean model that Stage 4
+  krigs with.
 
-Run on Linux (Python 3.10.12) in 60 seconds; 80 tests pass, 47 of them from
-Stage 1.
+Run on Linux (Python 3.10.12): the REML run in two parts of about a minute
+each, the checkpoint in 49 seconds; 96 tests pass, 47 of them from Stage 1.
 
 ```text
-Checkpoint 2, run 2026-11-07T18:51:27Z
+Checkpoint 2, run 2026-11-07T21:04:21Z
 
 PASS  S1 stocks: 1163 stocks, one per (site, location_id), none of the seven incomplete locations; all finite, 13.2 to 117.1 Mg C/ha
 PASS  S2 arithmetic: largest difference from the loop-based recomputation 1.4e-14 Mg C/ha (rule: 1e-09); the hand-worked example is in src/transform/test_stocks.py
 PASS  R1 likelihood: Gaussian log-likelihood against scikit-learn's GaussianProcessRegressor, largest relative difference 6.2e-13 over 128 parameter sets; REML criterion against its formula with explicit inverses, 6.5e-13 over 384, both mean models and all three families (rule: 1e-08)
 PASS  R2 recovery: medians over 50 fields of 400 points: effective range 151.3 m (+0.8%; quartiles 126 to 178), nugget-to-sill 0.296 (-1.3%; 0.255 to 0.346), sill 99.4 (-0.6%; 91.5 to 108); 50/50 fits converged (rule: each median within 10%)
-----  R3 fits: not built yet
-----  R4 record: not built yet
+PASS  R3 fits: all 55 fits converged inside their bounds (48 of one field, 7 joint); the D6 intervals of all 19 chosen models contain their estimates, and no profile rose above its fit by more than 0.0001
+PASS  R4 record: 16 rows, one per field and mean model, and 16 rows for D7's joint fits; no empty cell but nu outside the Matern; the numbers of stocks as in the stock table; constant mean, sharing +6.9 AIC: the small fields take own parameters; quadratic mean, sharing -0.7 AIC: the small fields take shared parameters; one model per field and mean model marked for Stage 4
 ----  V1 bins: not built yet
 ----  V2 independent estimate: not built yet
 ----  V3 baseline fits: not built yet
 
-Stocks in 0-30 cm per field, Mg C/ha (reported, not judged; the Box-Cox profile of D3 comes with the fits):
+Reported, not judged:
+
+Stocks in 0-30 cm per field, Mg C/ha:
  site  stocks mean   sd cv (%) skewness ± se trend R2
 IL-BR      60 21.8  3.8   17.2  +0.19 ± 0.31     0.20
 IL-DG      97 61.0  8.2   13.5  +0.26 ± 0.24     0.09
@@ -323,7 +358,46 @@ IL-RS     225 64.0 14.7   23.0  -0.18 ± 0.16     0.14
 IL-RT     245 61.7 17.4   28.2  +0.18 ± 0.16     0.44
    NE     144 64.4  7.4   11.5  +0.33 ± 0.20     0.31
 
-Checkpoint 2 NOT COMPLETE: 4/4 built rules passed, 5 not built yet
+REML models, (a) constant and (b) second-order mean; 95 % profile intervals, * where an end is the bound:
+field mean         family next family nugget partial sill effective range (m)                 nugget/sill      at bound  takes
+IL-BR  (a)      spherical    +0.0 AIC    0.0         14.0      34 [7*, 1981*]  0.00 [0.00*, 1.00*] strong           tau    own
+IL-DG  (a)      spherical    +0.1 AIC   63.7         18.2   1820 [19*, 1820*]     0.78 [0.28, 1.00*] weak     eff_range    own
+IL-MC  (a)      spherical    +0.2 AIC   30.4         59.8    2064 [65, 2064*] 0.34 [0.00*, 0.92] moderate     eff_range    own
+IL-PT  (a)      spherical    +0.5 AIC   45.9         11.0    401 [128, 1981*]      0.81 [0.19, 0.98] weak             -    own
+IL-RD  (a)      spherical    +0.3 AIC  135.5         88.4       237 [86, 289]  0.61 [0.34, 0.82] moderate             -    own
+IL-RS  (a)      spherical    +0.5 AIC  108.8        115.9      164 [120, 209]  0.48 [0.27, 0.69] moderate             -    own
+IL-RT  (a) matern nu 0.23    +1.1 AIC    0.0        626.5   2401 [212, 2401*]   0.00 [0.00*, 0.25] strong eff_range,tau    own
+   NE  (a)    exponential    +1.2 AIC    0.0         63.2       129 [79, 350]   0.00 [0.00*, 0.14] strong           tau    own
+IL-BR  (b)      spherical    +0.6 AIC    0.0         12.3      27 [7*, 1981*]  0.00 [0.00*, 1.00*] strong           tau shared
+IL-DG  (b)    exponential    +0.0 AIC   64.7          0.0     19 [19*, 1820*]    1.00 [0.00*, 1.00*] weak eff_range,tau shared
+IL-MC  (b)      spherical    +0.8 AIC    0.0         35.0      64 [8*, 2064*]  0.00 [0.00*, 1.00*] strong           tau shared
+IL-PT  (b)    exponential    +0.0 AIC   47.5          0.0     21 [21*, 1981*]    1.00 [0.00*, 1.00*] weak eff_range,tau shared
+IL-RD  (b)      spherical    +2.1 AIC  126.1        125.3       245 [88, 296]  0.50 [0.06, 0.77] moderate             -    own
+IL-RS  (b)      spherical    +0.7 AIC  111.3        108.0       160 [97, 305]  0.51 [0.03, 0.74] moderate             -    own
+IL-RT  (b)      spherical    +0.3 AIC    0.0        177.5         73 [64, 92]   0.00 [0.00*, 0.28] strong           tau    own
+   NE  (b)      spherical    +1.5 AIC    2.6         45.6         68 [51, 84]   0.05 [0.00*, 0.26] strong             -    own
+
+D7, the large fields' correlation parameters shared:
+mean         shared AIC jointly AIC own, summed difference small fields take shared range (m) shared nugget/sill                            shared/own range
+ (a) matern nu 0.24      6620.2          6613.3       +6.9               own 268 [144, 2491*] 0.00 [0.00*, 0.20] IL-RD 1.13, IL-RS 1.64, IL-RT 0.11, NE 2.09
+ (b)    exponential      6404.8          6405.5       -0.7            shared     93 [76, 133] 0.00 [0.00*, 0.20] IL-RD 0.38, IL-RS 0.58, IL-RT 1.26, NE 1.37
+
+D7, the shared parameters re-estimated from all eight fields:
+mean      family    range (m)        nugget/sill                            small fields' sills
+ (b) exponential 79 [66, 106] 0.00 [0.00*, 0.22] IL-BR 16.6, IL-DG 76.6, IL-MC 36.1, IL-PT 58.2
+
+D3, the Box-Cox lambda under mean model (a), 95 % profile interval:
+field      family             lambda interval excludes 1
+IL-BR   spherical  1.87 [0.65, 3.16]                  no
+IL-DG   spherical  1.61 [0.79, 2.47]                  no
+IL-MC   spherical 3.63 [1.88, 4.00*]                 yes
+IL-PT   spherical 2.76 [1.18, 4.00*]                 yes
+IL-RD   spherical  1.06 [0.67, 1.46]                  no
+IL-RS   spherical  1.48 [1.10, 1.89]                 yes
+IL-RT      matern  0.62 [0.30, 0.95]                 yes
+   NE exponential  1.87 [0.79, 2.97]                  no
+
+Checkpoint 2 NOT COMPLETE: 6/6 built rules passed, 3 not built yet
 ```
 
 **Reported, not judged:**
@@ -336,10 +410,42 @@ Checkpoint 2 NOT COMPLETE: 4/4 built rules passed, 5 not built yet
   in Potash et al. (2023, https://doi.org/10.1016/j.geoderma.2023.116587) is
   where to confirm it, before Stage 4 relies on it.
 - Every field's skewness lies within two standard errors of zero; the
-  largest is NE's, +0.33 ± 0.20. The Box-Cox profiles of D3 come with the
-  fits.
-- The second-order trend explains 8–44 % of the variance: 44 % at IL-RT,
-  31 % at NE and IL-MC.
+  largest is NE's, +0.33 ± 0.20. The second-order trend explains 8–44 % of
+  the variance: 44 % at IL-RT, 31 % at NE and IL-MC.
+- **The small fields cannot estimate their own variograms**, as D7
+  expected. Under (a) IL-DG's and IL-MC's effective ranges sit at their
+  upper bound and IL-BR's and IL-PT's intervals reach it; IL-BR's
+  nugget-to-sill interval spans 0 to 1. Under (b) IL-DG and IL-PT are pure
+  nugget, and IL-BR's and IL-MC's range intervals run from bound to bound.
+  Under (b) the four take the shared parameters; under (a) they keep these
+  fits, and their wide intervals are what Stage 4 propagates (D6).
+- **IL-RT under (a)** is a Matérn with ν = 0.23 and its effective range at
+  the 2,401 m bound, which looks like the trend (R² 0.44) taken up by a
+  long-range covariance. Under (b) it is a spherical of 73 m [64, 92].
+  Stage 4's cross-validation of (a) against (b) is where that is settled.
+- **D7.** Under (a) sharing costs 6.9 AIC, so every field keeps its own fit.
+  Under (b) it gains 0.7, so the four small fields take the exponential
+  re-estimated from all eight: 79 m [66, 106], nugget-to-sill 0.00
+  [0*, 0.22]. The large fields' shared-to-own ranges under (b) run from 0.38
+  (IL-RD) to 1.37 (NE): sharing wins on AIC because each field's own range
+  is imprecise and sharing saves six parameters, not because the four agree
+  closely.
+- **Ten of the sixteen nugget-to-sill intervals reach 0**, their lower
+  bound: the data cannot rule out a zero nugget there. At the five grid
+  fields, with no pair closer than 20 m, any nugget is extrapolated
+  (Checkpoint 1).
+- **D3.** Four fields' λ intervals exclude 1: IL-RT's below it (0.62
+  [0.30, 0.95]), where a log scale is the natural sensitivity, and IL-MC's,
+  IL-PT's and IL-RS's above it (3.63, 2.76, 1.48), where a log transform
+  would add skew rather than remove it. D3 names a log-scale sensitivity,
+  which does not fit λ above 1, so Stage 4's rules have to say what the
+  sensitivity is there before Stage 4 touches the data. The λ under (a) also
+  carries any trend, IL-RT's most.
+
+Still to build in Stage 2: the moment baseline with its rules V1–V3, and
+what Stage 2 reports beside it: the directional variograms and, per large
+field, the REML fit with geometric anisotropy; the Cressie–Hawkins
+estimator; notebook 02.
 
 ### References for Stage 2
 

@@ -8,9 +8,10 @@ site locations are offset by up to 4 km for data protection.
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
 > **Status: Stage 2 in build (07.11.2026).** Both datasets are pulled and
-> pass Checkpoint 1, 9 rules of 9. Of Checkpoint 2, the stock table and the
-> REML code pass their four rules; the fits, their record and the moment
-> baseline are not built yet ([`RUNBOOK.md`](RUNBOOK.md), Stage 2). Each
+> pass Checkpoint 1, 9 rules of 9. Of Checkpoint 2, six of nine rules pass:
+> the stock table, the REML code, and the REML fits to the eight fields with
+> their record; the moment baseline is not built yet
+> ([`RUNBOOK.md`](RUNBOOK.md), Stage 2). Each
 > stage's rules are fixed by a commit before its data is touched. Nothing
 > has been kriged yet.
 
@@ -45,11 +46,13 @@ the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
   at 1,163 locations, checked against a second computation; REML for three
   covariance families and two mean models, written in NumPy and SciPy, its
   likelihood checked against scikit-learn's and its estimates on 50
-  simulated fields (Checkpoint 2, rules S1, S2, R1, R2); 80 unit tests, none
-  of which makes a request; a CI workflow for Python 3.11 and 3.14, which
-  runs once the repository is pushed.
-- **Not yet:** the REML fits to the eight fields, with their intervals and
-  the pooling test, and the moment baseline (Checkpoint 2, R3, R4, V1–V3).
+  simulated fields; the REML fits to all eight fields under both mean
+  models, with 95 % profile-likelihood intervals, the pooling test for the
+  small fields and a Box-Cox profile per field (Checkpoint 2, rules S1, S2,
+  R1–R4); 96 unit tests, none of which makes a request; a CI workflow for
+  Python 3.11 and 3.14, which runs once the repository is pushed.
+- **Not yet:** the moment baseline (Checkpoint 2, V1–V3) and the anisotropy
+  check Stage 2 reports beside it.
   Stage 2's rules were fixed on 05.11.2026, after a review against current
   practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
   no kriging or kriging variance, no machine-learning benchmark, no
