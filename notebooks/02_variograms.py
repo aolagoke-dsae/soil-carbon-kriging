@@ -181,4 +181,4 @@ fig.legend(handles=[Line2D([], [], color=c, lw=1.2, marker="o", markersize=3.5, 
 fig.tight_layout(rect=(0, 0.07, 1, 1))
 fig.savefig(FIGS / "02_directional.png", dpi=150)
 plt.close(fig)
-print("figures:", sorted(p.name for p in FIGS.glob("02_*.png")))
+print(f"figures in {FIGS}:", sorted(p.name for p in FIGS.glob("02_*.png")))
