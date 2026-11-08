@@ -7,15 +7,17 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 3 run (08.11.2026); Stage 4's rules fixed (08.11.2026).**
+> **Status: Stage 4 run (08.11.2026): Checkpoint 4 passed, 11 of 11.**
 > Both datasets are pulled and pass Checkpoint 1, 9 rules of 9; Stage 2
 > passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
 > their intervals and the pooling test, and the gstat-style baseline beside
-> them; and Stage 3 passes Checkpoint 3, 6 of 6: eleven terrain covariates
-> at every location, from the newest USGS 3DEP tiles
-> ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 and 3). Each stage's rules are
-> fixed by a commit before its data is touched. Nothing has been kriged
-> yet.
+> them; Stage 3 passes Checkpoint 3, 6 of 6: eleven terrain covariates at
+> every location, from the newest USGS 3DEP tiles; and Stage 4 passes
+> Checkpoint 4, 11 of 11: Bayesian kriging cross-validated at all 1,163
+> locations under three mean models, against two forests
+> ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 to 4). Each stage's rules are fixed
+> by a commit before its data is touched; Stage 2's followed a review
+> against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
 ## Why
 
@@ -58,19 +60,27 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   under the fields by HTTP range requests, and from them slope and mean
   curvature at three scales, TPI at three and TWI at all 1,163 locations,
   checked against GDAL, direct least-squares fits, scikit-image and a
-  sparse linear solve (Checkpoint 3, 6/6 rules); 149 unit tests, none of
-  which makes a request; a CI workflow for Python 3.11 and 3.14.
-- **Not yet:** everything from Stage 4 on: kriging and the kriging
-  variance, the machine-learning benchmark, and the comparison with the
-  design-based estimate. Stage 4's rules were fixed on 08.11.2026: Bayesian
-  kriging under three mean models, one with terrain as an external drift,
-  against a quantile regression forest and a random forest with kriged
-  residuals trained across the eight fields, all judged by the same
-  cross-validation on CRPS, PICP and QCP.
-  Stage 2's rules were fixed on 05.11.2026, after a review against current
-  practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
-  no kriging or kriging variance, no machine-learning benchmark, no
-  comparison with the design-based estimate.
+  sparse linear solve (Checkpoint 3, 6/6 rules); Bayesian kriging in NumPy
+  and SciPy, its covariance parameters integrated over a grid inside Stage
+  2's bounds, under a constant mean, a quadratic trend and terrain as an
+  external drift chosen by AIC inside each training fold, with plug-in
+  kriging beside it; a quantile regression forest and a random forest with
+  kriged residuals, each trained across the eight fields; all of them
+  scored at every location by three repeats of ten-fold cross-validation on
+  the CRPS, PICP and QCP, and checked against the bordered kriging system,
+  explicit inverses, Stage 2's REML likelihood, a calibration simulation and
+  the trees' own leaves (Checkpoint 4, 11/11 rules); 207 unit tests, none
+  of which makes a request; a CI workflow for Python 3.11 and 3.14.
+- **What Stage 4 found:** the selected kriging's 90 % intervals hold 88 to
+  91 % of the held-out stocks at every field; carrying the parameters'
+  uncertainty widens the predictive variance by 2 to 12 % against plug-in
+  kriging; terrain as an external drift is selected at four fields of eight;
+  the selected kriging scores better than the quantile regression forest at
+  seven fields and better than the forest with kriged residuals at five
+  ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result*).
+- **Not yet:** each field's mean stock by block kriging against the
+  stratified, design-based estimate the paper evaluates (Stage 5), and the
+  national-scale model for BZE-LW (Stage 6). Neither has its rules yet.
 
 ## Licence
 
