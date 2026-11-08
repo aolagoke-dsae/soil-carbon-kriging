@@ -915,6 +915,18 @@ date, and the tile table reports that instead (*content dated*). Which
 source lies under a field is beyond what the records say, and Stage 3
 reads nothing else about the sources.
 
+**08.11.2026: three `DeprecationWarning`s from scikit-image under NumPy
+2.5.** On Windows, under Python 3.14.8 with the newest libraries (NumPy
+2.5.4, pandas 3.1.1, SciPy 1.16.3, scikit-image 0.26.0, tifffile
+2026.10.15, imagecodecs 2026.10.10, rasterio 1.5.2), the 149 tests pass,
+with three warnings. All three come from scikit-image's `reconstruction`,
+which E5's check and one unit test call: at its end it sets an array's
+`shape`, which NumPy 2.5 deprecates. That is scikit-image's code, not this
+repository's, and it changes no result; 0.26.0, the newest release, still
+has the line. The warnings are left visible rather than filtered. Should
+NumPy remove the setter before scikit-image changes the line, E5's check
+will fail, and the weekly CI run will show it.
+
 ### References for Stage 3
 
 - Adhikari, K., Smith, D. R., Collins, H. P., et al. (2022). Mapping within-field soil health variations using apparent electrical conductivity, topography, and machine learning. *Agronomy*, 12(5), 1019. https://doi.org/10.3390/agronomy12051019
