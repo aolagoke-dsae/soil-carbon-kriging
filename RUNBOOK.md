@@ -923,9 +923,13 @@ with three warnings. All three come from scikit-image's `reconstruction`,
 which E5's check and one unit test call: at its end it sets an array's
 `shape`, which NumPy 2.5 deprecates. That is scikit-image's code, not this
 repository's, and it changes no result; 0.26.0, the newest release, still
-has the line. The warnings are left visible rather than filtered. Should
-NumPy remove the setter before scikit-image changes the line, E5's check
-will fail, and the weekly CI run will show it.
+has the line. At the author's choice, `pytest.ini` ignores that one
+warning, by its message and scikit-image's `grayreconstruct` module, and
+nothing else, so the test summary is clean; the same message from any
+other module still shows. Should NumPy remove the setter before
+scikit-image changes the line, the call fails with an error, which no
+filter hides, and the weekly CI run shows it. The filter goes once a
+scikit-image release no longer sets the shape.
 
 ### References for Stage 3
 
