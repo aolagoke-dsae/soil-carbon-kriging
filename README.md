@@ -7,14 +7,15 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 3 run (08.11.2026).** Both datasets are pulled and pass
-> Checkpoint 1, 9 rules of 9; Stage 2 passes Checkpoint 2, 9 of 9: the
-> stocks, the REML covariance models with their intervals and the pooling
-> test, and the gstat-style baseline beside them; and Stage 3 passes
-> Checkpoint 3, 6 of 6: eleven terrain covariates at every location, from
-> the newest USGS 3DEP tiles ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 and 3).
-> Each stage's rules are fixed by a commit before its data is touched.
-> Nothing has been kriged yet.
+> **Status: Stage 3 run (08.11.2026); Stage 4's rules fixed (08.11.2026).**
+> Both datasets are pulled and pass Checkpoint 1, 9 rules of 9; Stage 2
+> passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
+> their intervals and the pooling test, and the gstat-style baseline beside
+> them; and Stage 3 passes Checkpoint 3, 6 of 6: eleven terrain covariates
+> at every location, from the newest USGS 3DEP tiles
+> ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 and 3). Each stage's rules are
+> fixed by a commit before its data is touched. Nothing has been kriged
+> yet.
 
 ## Why
 
@@ -61,7 +62,11 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   which makes a request; a CI workflow for Python 3.11 and 3.14.
 - **Not yet:** everything from Stage 4 on: kriging and the kriging
   variance, the machine-learning benchmark, and the comparison with the
-  design-based estimate. Stage 4's rules are not yet written.
+  design-based estimate. Stage 4's rules were fixed on 08.11.2026: Bayesian
+  kriging under three mean models, one with terrain as an external drift,
+  against a quantile regression forest and a random forest with kriged
+  residuals trained across the eight fields, all judged by the same
+  cross-validation on CRPS, PICP and QCP.
   Stage 2's rules were fixed on 05.11.2026, after a review against current
   practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
   no kriging or kriging variance, no machine-learning benchmark, no

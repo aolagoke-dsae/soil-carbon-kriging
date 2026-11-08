@@ -15,12 +15,12 @@ Plan, not to this file.
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
 | 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
-| 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
+| 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **rules fixed** 08.11.2026, not yet run |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
 | 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
 
-Stages 4–6 are a direction, not instructions. Each gets its rules, written
-before its data is touched, once the stage before it has passed. The order
+Stages 5 and 6 are a direction, not instructions. Each gets its rules,
+written before its data is touched, once the stage before it has passed. The order
 of Stages 3–6 and the machine-learning benchmark follow the review of the
 Stage 2 draft ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
@@ -953,3 +953,164 @@ scikit-image release no longer sets the shape.
 - U.S. Geological Survey. 1/3rd arc-second Digital Elevation Models (DEMs), USGS National Map 3DEP Downloadable Data Collection: the tiles, their updates and their historical versions, https://sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5; the versions, sizes, bounding boxes and metadata links as the TNM Access API lists them for the fields' extents (8 November 2026), https://tnmaccess.nationalmap.gov/api/v1/products
 - USGS FAQs on the DEMs' datums and coverage, https://www.usgs.gov/faqs/what-projection-horizontal-datum-vertical-datum-and-resolution-a-usgs-digital-elevation-model; their sources, https://www.usgs.gov/faqs/what-data-sources-are-used-produce-3d-elevation-program-3dep-dems; and their conversion to Cloud Optimized GeoTIFF, https://www.usgs.gov/faqs/what-happened-gridfloat-arcgrid-and-img-formats-elevation-data-national-map
 - Earth Engine's catalogue page for its copy of the collection, for the dates it covers: https://developers.google.com/earth-engine/datasets/catalog/USGS_3DEP_10m_collection
+
+---
+
+## Stage 4: kriging and its uncertainty, against two forests (Potash fields)
+
+> **Rules fixed on 8 November 2026** by the commit that adds them, before
+> any kriging, cross-validation or forest was run. The draft of the same
+> day was revised after review: kriging with terrain as an external drift
+> was added (D4), the forests were trained across all eight fields (D7),
+> and the cross-validation was cut to three repeats (D1). The data seen so
+> far are Stage 2's REML record and Stage 3's covariate table, as their
+> checkpoints reported them; no stock has been set against a covariate.
+
+```bash
+python -m src.transform.folds        # curated/potash_folds.parquet: three repeats of ten folds per field
+python -m src.transform.kriging      # curated/potash_cv_kriging.parquet: Bayesian and plug-in kriging, (a), (b) and (c)
+python -m src.transform.forests      # curated/potash_cv_forests.parquet: QRF, and RF with kriged residuals
+python -m src.checks.checkpoint4     # exit 0 passed, 1 a rule failed, 2 an input missing
+```
+
+Stage 4 asks two questions of each field. How well does kriging predict
+the stocks between the sampled locations, with Stage 2's two mean models
+and with terrain as an external drift, and do its prediction intervals
+hold their nominal coverage once the models' own uncertainty is carried
+through? And does a forest trained across the eight fields, on
+coordinates and terrain, do better? One cross-validation answers both, and
+it judges the whole predictive distribution, not only its centre. Stage 5
+krigs each field's mean with the model selected here (D5). Stage 4 adds no
+package: the Bayesian kriging is NumPy and SciPy, the forests are
+scikit-learn's.
+
+### Decisions, fixed before any kriging
+
+| | Decision | Why |
+|---|---|---|
+| D1 cross-validation | Each of the 1,163 stocks is predicted without its own fold: ten folds, assigned at random within each field, repeated three times with different assignments, the same folds for every method. Fold k of every field is held out together, so that the forests of D7, trained across the fields, never see a held-out stock. The seeds are fixed in the code and recorded with the folds. Everything estimated from the stocks is estimated afresh inside each training fold: the covariance parameters and their posterior, the drift of D4, the forests, the residual models. Fixed beforehand, from Stage 2, are each field's family, its anisotropy, Stage 2's sharing (its D7) and the Box-Cox λ of D6 | Ordinary random cross-validation "suits fairly regularly spread samples" (de Bruin et al. 2022), which the five grid fields are. Spatial cross-validation has no theoretical underpinning for map accuracy, and in their experiment it was more biased than the standard kind (Wadoux et al. 2021). Repeating a cross-validation reduces the variance of its estimate (Probst et al. 2019); Szatmári et al. (2026) validate soil-carbon maps with five repeats of ten folds, and three, the author's choice, keep the Bayesian grids' running time in hand. One set of folds makes every comparison paired, and refitting inside each fold keeps a held-out stock out of its own prediction |
+| D2 the kriging models (a) and (b) | For each field, the models Stage 2 marked for Stage 4: (a) a constant mean and (b) a second-order polynomial in the coordinates, each with its family; geometric anisotropy at IL-RD under (a) and (b) and at IL-RT under (a), with the ratio and angle Stage 2 estimated; under (b), the four small fields with the correlation parameters all eight share (Stage 2, D7), each with its own mean and sill | Stage 2 fixed these for Stage 4 (Stage 2, D4–D7, and its rule for anisotropy) |
+| D3 parameter uncertainty carried through | Every kriging in Stage 4 is Bayesian. A flat prior on the mean's coefficients and the prior 1/σ² on the sill, both integrated out analytically; for the correlation parameters a prior uniform in the logarithm of the effective range, in the nugget-to-sill ratio and, for the Matérn, in log ν, within Stage 2's bounds, on a grid: steps of 0.1 in log range, 0.05 in the ratio (0 standing for Stage 2's 10⁻⁶), and seven values of ν from 0.2 to 3. The posterior on the grid is then the restricted likelihood with the sill integrated rather than maximised, times the prior; and a held-out stock's predictive distribution is the posterior mixture of Student-t distributions with n − p degrees of freedom, each centred on the universal-kriging predictor. Under (b), the small fields' shared posterior is the product of all eight fields' integrated likelihoods. Plug-in kriging, Gaussian at the grid's maximum (the REML estimate to the grid's resolution), is computed beside it and reported | Kriging variances from fitted parameters treat them as known (Marchant & Lark 2004), and at the small fields Stage 2's intervals run from bound to bound. With a diffuse prior on the drift, the covariance parameters' posterior is given by the restricted likelihood (Kitanidis 1986), so this integrates Stage 2's REML likelihood instead of maximising it (Handcock & Stein 1993). Integrating the mean and sill analytically over a discrete prior on the correlation parameters is the Bayesian kriging of Diggle & Ribeiro (2002), as geoR's krige.bayes implements it, where a flat prior treats every value of the discrete set as equally plausible (Pollice & Jona Lasinio 2009). A flat prior on an unbounded range can leave the posterior improper (Berger et al. 2001); Stage 2's bounds, set from each field's geometry, keep it proper. A grid is exact to its resolution and needs none of the convergence checks an MCMC sampler would (Minasny et al. 2011); K2 tests the resolution |
+| D4 kriging with terrain as an external drift, (c) | A third mean model: a constant plus terrain covariates from Stage 3, with an exponential covariance and a nugget, isotropic, kriged as D3 says. Inside each training fold, the drift is the one with the lowest AIC by maximum likelihood, the covariance's parameters maximised on D3's grid, among the 256 drifts that take at most one scale of each attribute: elevation; slope at 30, 90 or 270 m; mean curvature at 30, 90 or 270 m; TPI at 50, 150 or 450 m; TWI. The constant alone is one of them | Potash et al. (2023) fitted a Bayesian kriging with external drift to each of these fields; its drift held all their covariates but the soil series: the coordinates, TWI, slope and aspect, and a Landsat index and two soil-map products that this repository does not have. On a Michigan field, kriging with terrain as an external drift had the lowest error on a 30.5 m grid, and on a 61 m grid every method that used terrain beat ordinary kriging (Mueller & Pierce 2003). A linear mixed model with covariates is kriging with external drift, and its residual likelihood is not suitable for the AIC; Marchant et al. (2017) chose among combinations of covariate groups by the AIC of the maximum likelihood, as here. One scale per attribute because Stage 3 left the scale to Stage 4 (Stage 3, D4; Behrens et al. 2010), and one attribute's scales are near duplicates. Choosing inside each fold keeps the choice away from the held-out stocks, so the scores judge the whole procedure. The exponential is fixed in advance, as for RF-RK's residuals (D7), because Stage 2 chose its families under other drifts; and Stage 2's anisotropy was estimated without terrain in the drift |
+| D5 the mean model selected | For each field, the mean model, (a), (b) or (c), whose Bayesian kriging has the lowest CRPS, averaged over the locations and the three repeats, is selected, and Stage 5 krigs with it | Stage 2 left (a) against (b) to cross-validation, because REML likelihoods are not comparable between mean models (Stage 2, D4), and (c) joins them on the same score. The CRPS is a strictly proper score of the whole predictive distribution, in the stocks' own unit (Gneiting & Raftery 2007): it rewards calibration and sharpness together, where RMSE alone would ignore the uncertainty Stage 4 exists to judge. IL-RT under (a), a Matérn whose range sits at its bound and most likely carries the trend (Stage 2), is settled here |
+| D6 a transformed scale, as a sensitivity | Where Stage 2's 95 % interval for λ excludes 1, mean model (a) is also kriged on a transformed scale and back-transformed: at IL-MC, IL-PT and IL-RS, whose λ lies above 1 (3.63, 2.76, 1.48), by the Box-Cox transform at that λ; at IL-RT (0.62), by the logarithm, as Stage 2's D3 named, and by the Box-Cox transform at 0.62. λ stays at Stage 2's estimate. Quantiles back-transform exactly; the mean by numerical integration of the back-transformed predictive. Reported only: D5's selection and every comparison stay on the original scale | Stage 2 found that a log transform would add skew where λ exceeds 1, and left the sensitivity there to these rules. Bayesian prediction carries over to transformed Gaussian fields (De Oliveira et al. 1997), here with the transform held fixed. The original scale stays primary because the field mean, Stage 5's quantity, is a linear functional of the stocks (Stage 2, D3) |
+| D7 the two forests, across the fields | One random forest per repeat and fold, trained on the training locations of all eight fields (about 1,047), on 13 covariates: longitude, latitude and Stage 3's eleven terrain covariates, none selected. 1,000 trees on bootstrap samples, a third of the covariates (4) tried at each split, more than ten locations in every leaf, no tuning. (i) **Quantile regression forest (QRF):** the predictive distribution weights the training stocks by how often each shares a leaf with the held-out location, each tree's weight divided by the number of training locations in that leaf and averaged over the trees (Meinshausen 2006, eqs 4–6); its mean is the weighted mean. (ii) **Random forest with kriged residuals (RF-RK):** the forest's prediction plus, field by field, the Bayesian kriging (D3, mean model (a), exponential) of the forest's out-of-bag residuals at that field's training locations; its predictive distribution is that kriging's, shifted by the forest's prediction | The benchmark the review of Stage 2 proposed (ML1). Within a field the soil-forming factors vary little, so dense covariates need large samples to calibrate (Taghizadeh-Mehrjardi et al. 2025): one forest across the fields learns from about 1,047 locations instead of 46–224, and since every field is in every training set, it never predicts a field it has not seen. Longitude and latitude put the eight fields in one frame, so the forest can tell the fields apart, by their coordinates and elevations, as well as place a location within its field; coordinates local to each field would give every field the same origin. QRF gives a forest's whole conditional distribution (Meinshausen 2006) and is used for the uncertainty of soil maps (Vaysse & Lagacherie 2017); kriging a regression's residuals adds what spatial correlation it leaves (Hengl et al. 2007), and with a random forest it has done well for environmental interpolation (Li et al. 2011). The outcome is open: in one comparison QRF gave among the best uncertainty models, and a forest with kriged residuals and the kriging variance the worst (Szatmári & Pásztor 2019), while for soil pH in Zambia kriging, with and without an external drift, predicted better than random forests (Makungwe et al. 2021). Here the residuals are out-of-bag: the variance of out-of-bag errors estimates a forest's residual variance consistently when the forest itself is consistent (Ramosaj & Pauly 2019), whereas in-bag residuals are shrunk by the fit. Random forests work reasonably well with their software defaults, and tuning gains less than for other learners (Probst et al. 2019); a third of the covariates at a split is the regression default, and 1,000 trees and nodes of more than ten observations are Meinshausen's. Nothing is selected, because choosing covariates on the stocks would need its own nested cross-validation: curvature at 90 m and TPI at 50 m, near duplicates (Stage 3), both stay, and their importances are read together. One forest per fold serves both methods, so they differ only in how they turn it into a predictive distribution. The exponential is the family Stage 2's D7 chose for the shared model under (b); fixing it selects nothing on the residuals |
+| D8 scores | Each method's predictive distribution is scored at every held-out location: the CRPS; the predictive mean's error, for ME, RMSE and MEC (one minus the sum of squared errors over the sum of squared deviations from the observed mean); its 39 quantiles at levels 0.025, 0.05, …, 0.975, from which come PICP, the share of stocks inside the central intervals of 5 to 95 % in steps of 5 %, and QCP, the share below each quantile; and the mean width of the 90 % interval. Scores are computed per repeat and averaged; coverages pool the repeats. A baseline without location, the training fold's own distribution of the field's stocks, is scored beside | PICP alone cannot reveal a one-sided bias, which QCP and the PIT histogram showed where PICP did not (Schmidinger & Heuvelink 2023); the CRPS (D5) scores calibration and sharpness together. PICP and QCP plots are how Szatmári et al. (2026) validate the uncertainty of soil-carbon maps; PICP is used by Shrestha & Solomatine (2006) and, for soil maps, by Malone et al. (2011); MEC is the modelling efficiency of Janssen & Heuberger (1995). Calibration is judged together with sharpness (Gneiting et al. 2007), hence the width. The baseline shows what location adds |
+| D9 what Stage 2 left open | **IL-BR.** Table 1 of Potash et al. (2023) gives each site's area, sample size, depth, date, tillage and texture but no carbon, and the parts of the text read give no site means, so the check Stage 2 asked for cannot be made from the table. IL-BR enters Stage 4 as it is. **Laboratory precision.** The paper reports none, so the nugget has no lower bound; that stays a limit (Stage 2) | Each kriging model is fitted field by field, so IL-BR's level enters none of their comparisons, only its spatial structure, and under (b) the fields share correlation parameters, not means or sills (Stage 2, D7). The forests see IL-BR's level, and can tell the field apart by its coordinates. Stage 5, which reports field means, has to settle it |
+| D10 scope | No field means and no block kriging (Stage 5). No covariates beyond Stage 3's terrain. No forest per field (D7). Maps only in notebook 04: the selected kriging's predictive mean and 90 % interval width on Stage 3's 10 m cells inside each field's location hull, with QRF's beside | Stage 5 gets its rules once Stage 4 has passed. Each addition here would need a choice made on the stocks, which these rules exist to fix beforehand |
+
+### Checkpoint 4: rules
+
+| Rule | Passes when |
+|---|---|
+| C1 folds | For every field and repeat, the folds partition the field's locations into ten folds whose sizes differ by at most one; no two of the three repeats share an assignment; and every method's predictions use the folds `curated/potash_folds.parquet` records |
+| C2 no leakage | Adding 1,000 Mg C/ha to the stocks held out in one fold of one repeat, that fold in every field at once, leaves every method's predictive quantiles at those locations unchanged, bit for bit |
+| K1 kriging algebra | For each field and mean model, at the grid's maximum, the universal-kriging predictor and variance at every held-out location of one fold equal those of the bordered kriging system with its Lagrange multipliers, solved directly, within 1e-9 relative; and the weights reproduce the drift within 1e-9: the constant under (a), the quadratic under (b), the chosen covariates under (c). The unit tests reproduce closed forms: exact interpolation without a nugget, and the variance with a single neighbour |
+| K2 posterior | On every field's grid, from all its stocks: under (a) and (b) the log posterior differs from Stage 2's REML criterion at the same parameters by one constant (spread within 1e-8); under all three mean models it equals a direct implementation with explicit determinants and inverses within 1e-8 relative; the weights sum to one; and, in one fold of every field and mean model, a grid with twice the points along every axis moves no held-out location's 5, 50 or 95 % quantile by more than 2 % of its 90 % interval's width |
+| K3 predictive distribution | At every held-out location the predictive distribution function, evaluated at the stored quantiles, returns their levels within 1e-9, and the predictive mean equals the posterior-weighted mean of the kriging predictors within 1e-9 relative. With all the posterior on one grid point, the predictive is the Student-t closed form (unit test) |
+| K4 calibration by simulation | On 100 fields simulated at IL-MC's 52 locations, exponential with a constant mean, each with its correlation parameters drawn from D3's prior (sill 1 and mean 0: under D3's priors the predictive's calibration does not depend on them): under the same ten-fold cross-validation, the Bayesian predictive's QCP lies within 0.03 of each of the 39 levels, and its PICP within 0.03 of 50 % and 90 %, pooled over the held-out values. When the parameters are drawn from the prior itself, a correct Bayesian predictive is calibrated (Cook et al. 2006). Plug-in kriging's coverage on the same fields is reported |
+| K5 the drift of (c) | In every training fold, the drift (c) uses has the lowest maximum-likelihood AIC of the 256 candidates, and no candidate takes two scales of one attribute; in one fold of every field, each candidate's maximum log-likelihood, recomputed at its grid maximum by a second path with explicit determinants and inverses, agrees with the first within 1e-8 relative |
+| M1 forests | Every QRF weight is non-negative, the weights of every prediction sum to one, and they equal a loop-based recomputation from the trees' leaves within 1e-12; each of RF-RK's residuals comes from the trees whose bootstrap sample left that location out; no forest's training set holds a location of its held-out fold, in any field; and on a simulated regression (2,000 training and 2,000 test points, one covariate x uniform on [0, 1], y = 2x plus standard normal noise), QRF's QCP lies within 0.05 of every level from 0.05 to 0.95 |
+| S1 scores | The CRPS equals the closed forms for a normal and a Student-t predictive (Gneiting & Raftery 2007; Jordan et al. 2019) within 1e-9 relative, and the energy form for a weighted empirical predictive within 1e-12; the numerical CRPS of a t-mixture, given one component, agrees with the closed form within 1e-6; PICP and QCP reproduce hand-worked cases in the tests |
+| R1 record | `curated/potash_cv.parquet` holds one row per repeat, method and location, for Bayesian and plug-in kriging under (a), (b) and (c), QRF, RF-RK, D6's transformed models at their fields and the baseline: the fold, the predictive mean, the 39 quantiles in non-decreasing order, and the CRPS, every value finite; `curated/potash_cv_drifts.parquet` holds (c)'s drift for every field, repeat and fold; and `curated/potash_cv_selection.parquet` holds each field's mean model by D5's rule |
+
+**Reported, not judged:**
+
+- per field and method: ME, RMSE, MEC, CRPS, PICP at 50 and 90 % and the
+  90 % interval's width, beside the baseline's CRPS
+- D5: each field's CRPS under (a), (b) and (c), and the mean model selected
+- (c): per field, how often each covariate entered the drift over the 30
+  folds; and, from all its stocks, the drift the AIC chooses, with its
+  coefficients' posterior means and 90 % credible intervals per standard
+  deviation of each covariate
+- what carrying the uncertainty changes: Bayesian against plug-in
+  kriging, in coverage and in the ratio of their predictive variances
+  (median over the held-out locations); and per field, from all its stocks,
+  the posterior median and 90 % credible interval of the effective range
+  and the nugget-to-sill ratio, beside Stage 2's profile intervals. This is
+  what the review of Stage 2 asked: how much of the prediction variance the
+  parameters' uncertainty adds
+- D6: the transformed models' scores beside the original-scale (a)
+- the forests against kriging: per field, the paired differences in CRPS
+  and RMSE from the selected kriging, and the share of locations where each
+  does better; and the forests' permutation importance, the rise in
+  held-out squared error when one covariate is shuffled, over the 30 forests
+- how far the cross-validation sits from mapping: per field, the distance
+  from each held-out location to its nearest training location in the same
+  field, against the distance from each 10 m cell inside the location hull
+  to its nearest location (Milà et al. 2022; Meyer & Pebesma 2022)
+- notebook 04: PICP and QCP plots per field and method, and the maps of D10
+
+**Known limits, accepted:**
+
+- The families, the anisotropy, the sharing and the Box-Cox λ come from
+  Stage 2's fits to all the stocks, so a little of each held-out stock
+  enters through them. The anisotropy's ratio and angle are held fixed, not
+  integrated.
+- At the clustered fields, IL-BR and IL-MC (gridded within subplots) and NE
+  (a model-based design: Potash et al. 2023), random cross-validation is
+  optimistic about accuracy over the whole field (de Bruin et al. 2022): a
+  held-out location often keeps a neighbour from its own cluster. Their
+  scores describe prediction near the sampled clusters, and this favours
+  the interpolators over the forests. The distance comparison shows how far
+  it is from mapping.
+- At the grid fields a held-out location's nearest neighbour lies a grid
+  spacing away, farther than for most cells of a map, so there the scores
+  lean, if anything, to the pessimistic side for mapping between locations.
+- Where the data say little, the prior decides: the small fields'
+  posteriors spread over Stage 2's bounds, which then shape their
+  intervals. The bounds come from each field's geometry, not its stocks.
+- The predictive distributions are a Gaussian process's on the original
+  scale; D6 checks a transform where Stage 2's λ asks for one, and heavier
+  tails than a t would show in QCP.
+- (c)'s drift is linear in its covariates, one coefficient each per field,
+  and is chosen afresh in every fold: its scores include the choice's
+  variability, but its predictive distribution does not carry the
+  uncertainty of the choice. Its covariance is the exponential, isotropic.
+- The forests treat terrain alike in every field: what one field teaches
+  about a covariate carries to the others, unless the coordinates and
+  elevation keep them apart. A forest per field is not tried.
+- Laboratory error sits in the nugget (Stage 2).
+- TWI is a lower bound at 182 of IL-RD's 248 locations and 39 of IL-MC's 52,
+  and the 30 m curvature carries a trace of the resampling (Stage 3); both
+  enter the forests and (c)'s candidates as they are.
+- Paired differences between methods are reported without a test:
+  cross-validation errors at neighbouring locations are correlated, and no
+  simple interval accounts for it.
+
+### References for Stage 4
+
+- Behrens, T., Zhu, A.-X., Schmidt, K., et al. (2010). Multi-scale digital terrain analysis and feature selection for digital soil mapping. *Geoderma*, 155(3–4), 175–185. https://doi.org/10.1016/j.geoderma.2009.07.010
+- Berger, J. O., De Oliveira, V., & Sansó, B. (2001). Objective Bayesian analysis of spatially correlated data. *Journal of the American Statistical Association*, 96(456), 1361–1374. https://doi.org/10.1198/016214501753382282
+- Cook, S. R., Gelman, A., & Rubin, D. B. (2006). Validation of software for Bayesian models using posterior quantiles. *Journal of Computational and Graphical Statistics*, 15(3), 675–692. https://doi.org/10.1198/106186006X136976; correction (2017), https://doi.org/10.1080/10618600.2017.1377082
+- de Bruin, S., Brus, D. J., Heuvelink, G. B. M., van Ebbenhorst Tengbergen, T., & Wadoux, A. M. J.-C. (2022). Dealing with clustered samples for assessing map accuracy by cross-validation. *Ecological Informatics*, 69, 101665. https://doi.org/10.1016/j.ecoinf.2022.101665
+- De Oliveira, V., Kedem, B., & Short, D. A. (1997). Bayesian prediction of transformed Gaussian random fields. *Journal of the American Statistical Association*, 92(440), 1422–1433. https://doi.org/10.1080/01621459.1997.10473663
+- Diggle, P. J., & Ribeiro, P. J. (2002). Bayesian inference in Gaussian model-based geostatistics. *Geographical and Environmental Modelling*, 6(2), 129–146. https://doi.org/10.1080/1361593022000029467
+- Gneiting, T., Balabdaoui, F., & Raftery, A. E. (2007). Probabilistic forecasts, calibration and sharpness. *Journal of the Royal Statistical Society Series B*, 69(2), 243–268. https://doi.org/10.1111/j.1467-9868.2007.00587.x
+- Gneiting, T., & Raftery, A. E. (2007). Strictly proper scoring rules, prediction, and estimation. *Journal of the American Statistical Association*, 102(477), 359–378. https://doi.org/10.1198/016214506000001437
+- Handcock, M. S., & Stein, M. L. (1993). A Bayesian analysis of kriging. *Technometrics*, 35(4), 403–410. https://doi.org/10.1080/00401706.1993.10485354
+- Hengl, T., Heuvelink, G. B. M., & Rossiter, D. G. (2007). About regression-kriging: From equations to case studies. *Computers & Geosciences*, 33(10), 1301–1315. https://doi.org/10.1016/j.cageo.2007.05.001
+- Janssen, P. H. M., & Heuberger, P. S. C. (1995). Calibration of process-oriented models. *Ecological Modelling*, 83(1–2), 55–66. https://doi.org/10.1016/0304-3800(95)00084-9
+- Jordan, A., Krüger, F., & Lerch, S. (2019). Evaluating probabilistic forecasts with scoringRules. *Journal of Statistical Software*, 90(12), 1–37. https://doi.org/10.18637/jss.v090.i12
+- Kitanidis, P. K. (1986). Parameter uncertainty in estimation of spatial functions: Bayesian analysis. *Water Resources Research*, 22(4), 499–507. https://doi.org/10.1029/WR022i004p00499
+- Li, J., Heap, A. D., Potter, A., & Daniell, J. J. (2011). Application of machine learning methods to spatial interpolation of environmental variables. *Environmental Modelling & Software*, 26(12), 1647–1659. https://doi.org/10.1016/j.envsoft.2011.07.004
+- Makungwe, M., Chabala, L. M., Chishala, B. H., & Lark, R. M. (2021). Performance of linear mixed models and random forests for spatial prediction of soil pH. *Geoderma*, 397, 115079. https://doi.org/10.1016/j.geoderma.2021.115079
+- Malone, B. P., McBratney, A. B., & Minasny, B. (2011). Empirical estimates of uncertainty for mapping continuous depth functions of soil attributes. *Geoderma*, 160(3–4), 614–626. https://doi.org/10.1016/j.geoderma.2010.11.013
+- Marchant, B. P., & Lark, R. M. (2004). Estimating variogram uncertainty. *Mathematical Geology*, 36(8), 867–898. https://doi.org/10.1023/b:matg.0000048797.08986.a7
+- Marchant, B. P., Saby, N. P. A., & Arrouays, D. (2017). A survey of topsoil arsenic and mercury concentrations across France. *Chemosphere*, 181, 635–644. https://doi.org/10.1016/j.chemosphere.2017.04.106
+- Meinshausen, N. (2006). Quantile regression forests. *Journal of Machine Learning Research*, 7, 983–999. https://www.jmlr.org/papers/v7/meinshausen06a.html
+- Meyer, H., & Pebesma, E. (2022). Machine learning-based global maps of ecological variables and the challenge of assessing them. *Nature Communications*, 13, 2208. https://doi.org/10.1038/s41467-022-29838-9
+- Milà, C., Mateu, J., Pebesma, E., & Meyer, H. (2022). Nearest neighbour distance matching Leave-One-Out Cross-Validation for map validation. *Methods in Ecology and Evolution*, 13(6), 1304–1316. https://doi.org/10.1111/2041-210X.13851
+- Minasny, B., Vrugt, J. A., & McBratney, A. B. (2011). Confronting uncertainty in model-based geostatistics using Markov Chain Monte Carlo simulation. *Geoderma*, 163(3–4), 150–162. https://doi.org/10.1016/j.geoderma.2011.03.011
+- Mueller, T. G., & Pierce, F. J. (2003). Soil carbon maps: Enhancing spatial estimates with simple terrain attributes at multiple scales. *Soil Science Society of America Journal*, 67(1), 258–267. https://doi.org/10.2136/sssaj2003.2580
+- Pollice, A., & Jona Lasinio, G. (2009). Two approaches to imputation and adjustment of air quality data from a composite monitoring network. *Journal of Data Science*, 7(1), 43–59. https://doi.org/10.6339/JDS.2009.07(1).589
+- Potash, E., Guan, K., Margenot, A. J., et al. (2023). Multi-site evaluation of stratified and balanced sampling of soil organic carbon stocks in agricultural fields. *Geoderma*, 438, 116587. https://doi.org/10.1016/j.geoderma.2023.116587 (Tables 1 and 2, Sections 2.1 and 2.3, read 8 November 2026)
+- Probst, P., Wright, M. N., & Boulesteix, A.-L. (2019). Hyperparameters and tuning strategies for random forest. *WIREs Data Mining and Knowledge Discovery*, 9(3), e1301. https://doi.org/10.1002/widm.1301
+- Ramosaj, B., & Pauly, M. (2019). Consistent estimation of residual variance with random forest Out-Of-Bag errors. *Statistics & Probability Letters*, 151, 49–57. https://doi.org/10.1016/j.spl.2019.03.017
+- Schmidinger, J., & Heuvelink, G. B. M. (2023). Validation of uncertainty predictions in digital soil mapping. *Geoderma*, 437, 116585. https://doi.org/10.1016/j.geoderma.2023.116585
+- Shrestha, D. L., & Solomatine, D. P. (2006). Machine learning approaches for estimation of prediction interval for the model output. *Neural Networks*, 19(2), 225–235. https://doi.org/10.1016/j.neunet.2006.01.012
+- Szatmári, G., & Pásztor, L. (2019). Comparison of various uncertainty modelling approaches based on geostatistics and machine learning algorithms. *Geoderma*, 337, 1329–1340. https://doi.org/10.1016/j.geoderma.2018.09.008
+- Szatmári, G., Laborczi, A., Takács, K., et al. (2026). HU-SoilCarbonGrids: an initiative for providing comprehensive information on soil organic carbon changes in Hungary. *European Journal of Soil Science*, 77(1). https://doi.org/10.1111/ejss.70292
+- Taghizadeh-Mehrjardi, R., Kerry, R., Ingram, B., et al. (2025). Mapping soil volumetric water content at multiple depths for variable rate irrigation using UAV and yield monitor data with random forests. *Soil Use and Management*, 41(4). https://doi.org/10.1111/sum.70156
+- Vaysse, K., & Lagacherie, P. (2017). Using quantile regression forest to estimate uncertainty of digital soil mapping products. *Geoderma*, 291, 55–64. https://doi.org/10.1016/j.geoderma.2016.12.017
+- Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
