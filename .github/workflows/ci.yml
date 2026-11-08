@@ -5,8 +5,9 @@ name: ci
 # to support, 3.14 the one it is developed on. requirements.txt pins nothing,
 # so a red Monday run with no commits means the ecosystem moved, not the code.
 #
-# Deliberately NOT in CI: the two pulls. A build must not depend on figshare
-# or the Thünen Atlas being up; the tests replace every request.
+# Deliberately NOT in CI: the three pulls. A build must not depend on
+# figshare, the Thünen Atlas or The National Map being up; the tests replace
+# every request.
 
 on:
   push:

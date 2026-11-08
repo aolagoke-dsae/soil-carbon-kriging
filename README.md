@@ -7,12 +7,14 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 2 run (07.11.2026); Stage 3's rules fixed (08.11.2026).**
-> Both datasets are pulled and pass Checkpoint 1, 9 rules of 9, and Stage 2
-> passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
-> their intervals and the pooling test, and the gstat-style baseline beside
-> them ([`RUNBOOK.md`](RUNBOOK.md), Stage 2). Each stage's rules are fixed
-> by a commit before its data is touched. Nothing has been kriged yet.
+> **Status: Stage 3 run (08.11.2026).** Both datasets are pulled and pass
+> Checkpoint 1, 9 rules of 9; Stage 2 passes Checkpoint 2, 9 of 9: the
+> stocks, the REML covariance models with their intervals and the pooling
+> test, and the gstat-style baseline beside them; and Stage 3 passes
+> Checkpoint 3, 6 of 6: eleven terrain covariates at every location, from
+> the newest USGS 3DEP tiles ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 and 3).
+> Each stage's rules are fixed by a commit before its data is touched.
+> Nothing has been kriged yet.
 
 ## Why
 
@@ -32,10 +34,11 @@ machine-learning benchmark tests whether a forest does better.
 |---|---|---|---|
 | Potash (2023), [figshare 23669304 v2](https://doi.org/10.6084/m9.figshare.23669304.v2) | Soil organic carbon concentration and bulk density by depth segment, at georeferenced locations in eight commercial U.S. Midwest fields. Methods: Potash et al. (2023), *Geoderma* 438, 116587, https://doi.org/10.1016/j.geoderma.2023.116587 | CC BY 4.0 | figshare REST API, version pinned; each file checked against the size and MD5 the article states |
 | Poeplau et al. (2020), [BZE-LW core dataset](https://doi.org/10.3220/DATA20200203151139) | 3,104 agricultural sites in Germany with the organic carbon stock in 0–30 cm, land use and soil description. **The coordinates are randomised within 4 km of each planned point, for data protection** | CC BY 4.0 | OGC WFS 2.0 from the Thünen Atlas, paged in `pointid` order; completeness checked against the total the server states |
+| U.S. Geological Survey, [3DEP 1/3 arc-second DEM](https://www.sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5), through The National Map | Elevation in metres (NAVD 88) on a 1/3 arc-second grid, about 10 m, in tiles of 1 × 1 degree: for each tile under a Potash field, its newest version | Public domain (U.S. Government work) | TNM Access API for the versions; HTTP range requests for each tile's header and the blocks under the fields, 15.8 MB of 2.2 GB; the versions pinned in the manifest |
 
 `raw/` is not committed: the clients fetch it again. `raw/manifest.csv` is,
 and records every response's URL, status, size, SHA-256 and time. How to run
-the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
+the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 
 ## What is real
 
@@ -50,13 +53,15 @@ the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
   small fields, a Box-Cox profile per field and a geometric-anisotropy check
   for the large fields; the gstat-style moment baseline beside them, its
   semivariances and fits checked against scikit-gstat's (Checkpoint 2, 9/9
-  rules); 110 unit tests, none of which makes a request; a CI workflow for
-  Python 3.11 and 3.14.
-- **Not yet:** everything from Stage 3 on: the terrain covariates, kriging
-  and the kriging variance, the machine-learning benchmark, and the
-  comparison with the design-based estimate. Stage 3's rules, for terrain
-  covariates from the newest USGS 3DEP tiles, were fixed on 08.11.2026; no
-  elevation has been fetched.
+  rules); a third client, which reads only the parts of five USGS tiles
+  under the fields by HTTP range requests, and from them slope and mean
+  curvature at three scales, TPI at three and TWI at all 1,163 locations,
+  checked against GDAL, direct least-squares fits, scikit-image and a
+  sparse linear solve (Checkpoint 3, 6/6 rules); 149 unit tests, none of
+  which makes a request; a CI workflow for Python 3.11 and 3.14.
+- **Not yet:** everything from Stage 4 on: kriging and the kriging
+  variance, the machine-learning benchmark, and the comparison with the
+  design-based estimate. Stage 4's rules are not yet written.
   Stage 2's rules were fixed on 05.11.2026, after a review against current
   practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
   no kriging or kriging variance, no machine-learning benchmark, no

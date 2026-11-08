@@ -14,7 +14,7 @@ Plan, not to this file.
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
 | 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
-| 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **rules fixed** 08.11.2026, not yet run |
+| 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
 | 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
@@ -606,9 +606,9 @@ cover the patch (D2). Every response goes to `raw/TNM/` write-once with a
 manifest row, as in Stage 1, the byte range in the row's `revision`; `raw/`
 stays out of git, and the manifest, which is committed, pins the versions.
 For each version the client also stores the metadata record the listing
-links, which names its sources. Stage 3 adds `tifffile` and `imagecodecs`
-(reading the tiles), `rasterio` (rule E3) and `scikit-image` (rule E5) to
-`requirements.txt`.
+links, which names its sources (it names none: see *If it fails*). Stage 3
+adds `tifffile` and `imagecodecs` (reading the tiles), `rasterio` (rule E3)
+and `scikit-image` (rule E5) to `requirements.txt`.
 
 Terrain is a covariate available at 10 m for all eight fields. In a
 Michigan field sampled on a 61 m grid, maps of soil carbon that drew on
@@ -645,7 +645,9 @@ benchmark puts to these fields.
 
 - per field, the patch's size; per tile, the version used, the bytes read
   against the file's size, and the sources its metadata record names (for
-  the whole block, not the field)
+  the whole block, not the field). The records name none, so their period
+  of content is reported instead (changed after the first run: see *If it
+  fails*)
 - at the locations, per field: elevation (lowest, median, highest,
   interquartile range); the median slope for each window; the interquartile
   ranges of curvature and TPI at each scale; the range of TWI
@@ -667,7 +669,8 @@ benchmark puts to these fields.
 - The 1/3 arc-second DEM is seamless but joins sources of different methods
   and dates. Current 3DEP DEMs come almost entirely from lidar and IfSAR,
   older ones also from the contours of topographic maps (USGS). A tile's
-  metadata record names its sources for the whole block, not for the field.
+  metadata record gives only the period of its sources, for the whole
+  block, not for the field (see *If it fails*).
 - The source grid is geographic, on NAD83 (USGS), and is resampled to 10 m
   in UTM: values are smoothed over about a cell, and the 30 m slope inherits
   that. The locations' coordinates (WGS 84 in Stage 2) and the DEM's NAD83
@@ -690,6 +693,227 @@ benchmark puts to these fields.
 - A later pull depends on The National Map keeping the dated versions in
   its historical folder; the manifest's SHA-256 shows whether a pull
   matches the first.
+
+### Result
+
+**Passed on 8 November 2026: 6/6 rules**, at the checkpoint's second run.
+The first found the plane of E3 off by 2.6 × 10⁻⁶ m in IL-RS, which changed
+the transform, not the rule (see *If it fails*). The three commands, in
+order:
+
+```bash
+python -m src.ingest.tnm_client      # run on Windows: 42 responses, 16.08 MB
+python -m src.transform.terrain      # curated/potash_terrain.parquet and curated/terrain/<site>.npz
+python -m src.checks.checkpoint3     # exit 0 passed, 1 a rule failed, 2 an input missing
+```
+
+The pull ran on 8 November from 11:41:46 to 11:42:08 UTC, on Windows,
+because the build environment's proxy refuses The National Map (see *If it
+fails*): eight listings, five metadata records and 29 byte ranges of five
+tile versions, 15.8 MB of the 2.17 GB the five files hold. The transform
+and the checkpoint take about half a minute each; the checkpoint
+recomputes every field from `raw/`. A second pull finds nothing to fetch,
+and `--refresh` asks for the listings again while the versions stay pinned
+(D1).
+
+**The tiles**, each the newest version its listing gave on 8 November.
+Three were published on 2 September 2026; all five are later than May
+2022, where Earth Engine's catalogue ends its copy (D8). *Content dated* is
+each metadata record's period of content; no record names its sources.
+
+| Tile | Version | Fields | Read of the file (MB) | Content dated |
+|---|---|---|---|---|
+| n40w089 | 2024-01-04 | IL-DG, IL-PT, IL-RD, IL-RS (south), IL-RT | 6.70 of 426 | 2012-02-17 to 2022-06-28 |
+| n40w090 | 2026-09-02 | IL-MC | 2.79 of 430 | 2021-03-06 to 2024-03-29 |
+| n40w091 | 2026-09-02 | IL-BR | 3.27 of 462 | 2015-04-26 to 2024-03-29 |
+| n41w089 | 2026-09-02 | IL-RS (north) | 1.64 of 425 | 2019-04-16 to 2024-03-29 |
+| n42w097 | 2023-02-10 | NE | 1.38 of 429 | 1965-01-01 to 2021-04-01 |
+
+**At the locations, per field:** the patch in columns × rows; elevation,
+lowest / median / highest, and its interquartile range; the median slope
+for each window; the range of TWI.
+
+| Field (locations) | Patch | Elevation (m) | IQR (m) | Median slope, 30 / 90 / 270 m (°) | TWI |
+|---|---|---|---|---|---|
+| IL-BR (60) | 263 × 238 | 190.0 / 191.5 / 192.0 | 0.87 | 0.77 / 0.85 / 0.61 | 6.2–11.5 |
+| IL-DG (97) | 237 × 253 | 194.5 / 195.2 / 195.6 | 0.23 | 0.23 / 0.15 / 0.07 | 7.2–14.6 |
+| IL-MC (52) | 268 × 235 | 188.3 / 191.4 / 194.4 | 1.76 | 0.91 / 0.84 / 0.55 | 6.6–11.8 |
+| IL-PT (92) | 259 × 238 | 204.0 / 204.9 / 206.1 | 0.99 | 0.33 / 0.27 / 0.22 | 7.5–15.0 |
+| IL-RD (248) | 275 × 241 | 200.7 / 202.7 / 205.0 | 1.14 | 0.44 / 0.34 / 0.24 | 6.9–15.3 |
+| IL-RS (225) | 271 × 242 | 215.3 / 219.9 / 223.5 | 3.59 | 0.89 / 0.73 / 0.53 | 6.7–14.4 |
+| IL-RT (245) | 245 × 269 | 197.1 / 198.0 / 198.7 | 0.71 | 0.24 / 0.19 / 0.16 | 7.2–16.1 |
+| NE (144) | 226 × 256 | 352.3 / 353.4 / 355.1 | 0.80 | 0.76 / 0.56 / 0.24 | 6.5–16.7 |
+
+Interquartile ranges of curvature and TPI at the locations:
+
+| Field | Mean curvature, 30 / 90 / 270 m (1/km) | TPI, 50 / 150 / 450 m (m) |
+|---|---|---|
+| IL-BR | 0.448 / 0.438 / 0.210 | 0.273 / 1.516 / 2.011 |
+| IL-DG | 0.158 / 0.089 / 0.014 | 0.064 / 0.166 / 0.221 |
+| IL-MC | 0.268 / 0.189 / 0.114 | 0.142 / 0.871 / 1.094 |
+| IL-PT | 0.178 / 0.107 / 0.020 | 0.076 / 0.231 / 0.573 |
+| IL-RD | 0.230 / 0.132 / 0.027 | 0.100 / 0.314 / 0.469 |
+| IL-RS | 0.451 / 0.207 / 0.062 | 0.153 / 0.530 / 1.078 |
+| IL-RT | 0.181 / 0.082 / 0.019 | 0.069 / 0.158 / 0.428 |
+| NE | 0.434 / 0.286 / 0.067 | 0.210 / 0.722 / 0.818 |
+
+**Wetness (D6):** the fill, the floor of tan β, and the catchments that
+the patch's edge cuts off.
+
+| Field (locations) | Cells raised by the fill | Largest rise (m) | Locations on raised cells | tan β at the floor: cells / locations | Spearman, TWI with floors of 10⁻⁴ and 10⁻² | Locations whose upslope area reaches the edge |
+|---|---|---|---|---|---|---|
+| IL-BR (60) | 1.5 % | 1.06 | 0 | 0.6 % / 0.0 % | 0.858 | 0 |
+| IL-DG (97) | 23.0 % | 0.75 | 21 | 20.1 % / 15.5 % | 0.897 | 0 |
+| IL-MC (52) | 1.8 % | 0.83 | 0 | 0.8 % / 0.0 % | 0.966 | 39 |
+| IL-PT (92) | 13.8 % | 0.63 | 16 | 10.1 % / 10.9 % | 0.930 | 0 |
+| IL-RD (248) | 2.1 % | 1.16 | 3 | 1.7 % / 0.4 % | 0.901 | 182 |
+| IL-RS (225) | 7.6 % | 1.53 | 7 | 4.5 % / 0.4 % | 0.980 | 33 |
+| IL-RT (245) | 10.8 % | 1.26 | 42 | 9.2 % / 8.2 % | 0.888 | 26 |
+| NE (144) | 28.0 % | 1.56 | 47 | 20.1 % / 16.0 % | 0.953 | 9 |
+
+**Collinearity** at the locations, by Spearman's correlation; no stock is
+involved. Pooled over all 1,163 locations, one pair exceeds 0.9 in absolute
+value: mean curvature at 90 m and TPI at 50 m (+0.92), with the slopes at
+30 and 90 m close behind (+0.89). Within fields, curvature at 90 m and TPI
+at 50 m exceed it in five (IL-BR, IL-DG, IL-MC, IL-RT, NE); in NE also
+curvature at 30 m and TPI at 50 m, TPI at 150 and at 450 m, and elevation
+and TPI at 150 m; elevation and TPI at 450 m in IL-DG and IL-PT; and in
+IL-MC the slopes at 30 and 90 m, and curvature at 270 m and TPI at 150 m.
+TWI correlates negatively with every other covariate, most strongly with
+TPI at 50 m (−0.67).
+
+What the numbers say, beyond the rules:
+
+- **The fields are nearly level.** At the locations the median slope at
+  30 m is below 1° in every field and the steepest is 3.3°. IL-RS has the
+  most relief (an interquartile range of 3.6 m in elevation), IL-DG the
+  least (0.23 m).
+- **On the flattest ground TWI rests partly on conventions.** In NE and
+  IL-DG the fill raised a quarter of the patch's cells, and about a sixth
+  of their locations sit where tan β is at its floor. How much the floor
+  reorders TWI shows in the correlation between its values under floors of
+  10⁻⁴ and 10⁻²: 0.86–0.98, lowest in IL-BR, IL-RT and IL-DG.
+- **In IL-RD the TWI is mostly a lower bound**: for 182 of the 248
+  locations the upslope area reaches the patch's edge, where D6 cuts the
+  catchment off; in IL-MC, 39 of 52.
+- **Curvature at 90 m and TPI at 50 m nearly duplicate each other** at
+  these locations.
+- **The 30 m curvature carries a trace of the resampling.** Seen in notebook
+  03's maps as faint striping, and not among the items fixed for
+  reporting. Bilinear interpolation smooths least where a patch cell's
+  centre falls near a native cell's centre and most halfway between. In
+  every field the 30 m curvature's magnitude rises with the share of a
+  white noise's variance the interpolation keeps at the cell (Spearman
+  +0.02 to +0.05), and its median is 9–25 % higher where that share is
+  above 0.8 than where it is below 0.35. At 90 and 270 m the correlation
+  lies within ±0.05, of either sign. Part of the 30 m curvature's variation
+  is the resampling's, not the ground's.
+
+Notebook 03 (`notebooks/03_terrain.py`) draws each field's hillshaded DEM
+with its locations; field by field, the eleven covariates' grids and the
+cells whose upslope area reaches the edge; and computes the resampling's
+trace above. Its figures go to `notebooks/scratch/`.
+
+Choices made while building, inside the decisions above. None of them
+depends on the stocks:
+
+- **Which items are versions.** A listing also returns items under other
+  titles, such as "USGS 13 arc-second n40w089 1 x 1 degree"; only those
+  titled "USGS 1/3 Arc Second <block> <date>" count (D1). The newest is the
+  one with the latest publication date, then the latest date in its name.
+- **The header** is the first 64 KiB of each version. In all five the image
+  data begin within the first 7.4 KB, so the header holds every tag and the
+  offset and size of every block.
+- **One range per block.** The 512 × 512 blocks of these files lie 8 bytes
+  apart (GDAL writes a leader and a trailer around each), so none adjoin,
+  and each of the 24 blocks read was requested on its own.
+- **A range response** must be HTTP 206 with a Content-Range naming the
+  bytes asked for and the file's size, and must carry the same ETag as the
+  version's other ranges; anything else is refused unread (E1).
+- **Strict reads.** The transform reads a tile through a file object that
+  holds only the stored ranges and raises on any read outside them.
+- **The metadata record.** The listing's `vendorMetaUrl` is the FGDC XML
+  for some items and an S3 browser page for others: the client takes the
+  XML where the listing gives one, and otherwise ScienceBase's record as
+  JSON (`metaUrl?format=json`). All five records are FGDC XML.
+- **A tile's grid** comes from its GeoTIFF tags: tiepoint, pixel scale,
+  PixelIsArea, NAD83 and the nodata value −999999. E3 checks it against
+  GDAL's.
+- **Each tile resampled on its own grid** (changed after the first run: see
+  *If it fails*). At every patch cell centre, the newest version whose four
+  native cells around the centre are all in its window gives the value. In
+  IL-RS that is n41w089 north of a line about six native cells south of
+  40° N, and n40w089 south of it; the field's `.npz` records which version
+  gave each cell.
+- **Edges.** A cell whose window (D4) or disc (D5) would reach past the
+  patch is left empty; the 1,000 m buffer keeps every location clear of
+  them. In the flow routing (D6) the patch's edge cells are outlets: the
+  fill leaves them as they are, and flow that reaches them leaves the
+  patch.
+- **E2's tolerance for one lattice** is 10⁻³ of a cell, about 1 cm. The rule
+  gives none; it was set after the first run found IL-RS's tiles 1.4 ×
+  10⁻⁵ of a cell apart. For a field on two tiles, E2 counts the cells to
+  spare on each window's sides except where the patch runs on into the
+  neighbouring tile, and checks that some window covers every patch cell
+  centre.
+- **E3's plane** rises 1,000 m per degree of longitude and 2,000 m per
+  degree of latitude, about 1.2 % and 1.8 %; it is laid on GDAL's cell
+  centres and passed through the transform's own resampling.
+- **What `curated/terrain/<site>.npz` holds:** the eleven covariates' grids
+  (float32), the filled DEM (float64), the accumulated area, the area that
+  comes from the patch's edge, tan β, the TWI under the two reported
+  floors, which version gave each cell, the versions' URLs, and the grid's
+  EPSG, corner and cell size.
+
+`requirements.txt` now has tifffile, imagecodecs, rasterio and
+scikit-image. `curated/` is not committed: the transform rebuilds it from
+`raw/`, and this file records what it produced.
+
+Stage 3 has passed. Three points carry forward to Stage 4's rules: where
+TWI is a lower bound (IL-RD above all) and how much its floor reorders it;
+the near-duplicate pair of curvature at 90 m and TPI at 50 m; and the
+resampling's share in the 30 m curvature.
+
+### If it fails
+
+**08.11.2026: HTTP 403 from the build environment's proxy.** As in Stage 1,
+the environment the repository is written in does not reach the source:
+its egress proxy refuses `tnmaccess.nationalmap.gov`, where the client
+starts. That is the environment, not the source. The pull ran on Windows;
+the transform and the checkpoint read only `raw/` and ran in the build
+environment.
+
+**08.11.2026: two tiles 1.4 × 10⁻⁵ of a cell off one lattice.** The first
+transform stopped at IL-RS: it placed n41w089's cells on n40w089's lattice
+and required the two to share it exactly, and they do not. The tiles store
+their cell size as 9.259259269 × 10⁻⁵ degrees, against 1/10800 =
+9.259259259 × 10⁻⁵, and their tiepoints lie up to 8 × 10⁻¹⁰ degrees from
+the nominal corners, so n41w089's first row lies 10,799.999986 rows north
+of n40w089's, not 10,800: 0.14 mm on the ground. The transform then
+accepted a lattice within 10⁻³ of a cell.
+
+**08.11.2026: the plane caught the lattice.** The first run of the
+checkpoint failed E3, 5/6: the plane came through 2.6 × 10⁻⁶ m off in
+IL-RS, against 10⁻⁶ m. That is the lattice above: n41w089's values, moved
+1.4 × 10⁻⁵ of a cell onto n40w089's lattice, sat that far from their place,
+and the plane rises 2,000 m per degree of latitude (1.4 × 10⁻⁵ × 9.26 ×
+10⁻⁵ degrees × 2,000 m per degree = 2.6 × 10⁻⁶ m). The transform now
+resamples each tile on its own grid and takes the newest version wherever
+its native cells surround a patch cell's centre, which is what D2 says,
+and moves no tile's cells; the plane comes through within 1.5 × 10⁻¹¹ m,
+and Checkpoint 3 passes, 6/6. The rule did not change. At IL-RS's
+locations the covariates moved by at most 3.9 × 10⁻⁶ m in elevation,
+1.3 × 10⁻⁵ degrees in slope and 5.6 × 10⁻⁴ in TWI; in the other fields by
+rounding alone, 2.3 × 10⁻¹¹ m at most in elevation. E2's tolerance of
+10⁻³ of a cell remains, as a check on the tiles alone.
+
+**08.11.2026: the metadata records name no sources.** The rules expected
+each tile's FGDC record to name the sources of its block, in a lineage
+section, and the tile table to report them. None of the five has a
+lineage section: each gives its period of content, a first and a last
+date, and the tile table reports that instead (*content dated*). Which
+source lies under a field is beyond what the records say, and Stage 3
+reads nothing else about the sources.
 
 ### References for Stage 3
 
