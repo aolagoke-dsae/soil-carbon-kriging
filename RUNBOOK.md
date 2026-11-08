@@ -14,12 +14,12 @@ Plan, not to this file.
 |---|---|---|
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
 | 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
-| 3 | Terrain covariates for the eight fields: USGS 3DEP 10 m elevation and its derivatives, extracted through Earth Engine, the values committed | not yet specified |
+| 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **rules fixed** 08.11.2026, not yet run |
 | 4 | Kriging per field with the Stage 2 models: (a) against (b), the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, on coordinates and terrain | not yet specified |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
 | 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
 
-Stages 3–6 are a direction, not instructions. Each gets its rules, written
+Stages 4–6 are a direction, not instructions. Each gets its rules, written
 before its data is touched, once the stage before it has passed. The order
 of Stages 3–6 and the machine-learning benchmark follow the review of the
 Stage 2 draft ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
@@ -579,3 +579,137 @@ pandas 2 and 3. The verdict did not change.
 - von Haden, A. C., Yang, W. H., & DeLucia, E. H. (2020). Soils' dirty little secret: depth-based comparisons can be inadequate for quantifying changes in soil organic carbon and other mineral soil properties. *Global Change Biology*, 26(7), 3759–3770. https://doi.org/10.1111/gcb.15124
 - Webster, R., & McBratney, A. B. (1989). On the Akaike Information Criterion for choosing models for variograms of soil properties. *Journal of Soil Science*, 40(3), 493–496. https://doi.org/10.1111/j.1365-2389.1989.tb01291.x
 - Webster, R., & Oliver, M. A. (1992). Sample adequately to estimate variograms of soil properties. *Journal of Soil Science*, 43(1), 177–192. https://doi.org/10.1111/j.1365-2389.1992.tb00128.x
+
+---
+
+## Stage 3: terrain covariates (Potash fields)
+
+> **Rules fixed on 8 November 2026** by the commit that adds them, before any
+> elevation was fetched. The draft of 7 November was revised after review:
+> the DEM now comes from The National Map in its newest versions, not from
+> Earth Engine (D8); the reasons for the covariates and their scales cite
+> the literature; and TWI follows a published guideline (D6). The only data
+> seen are the locations' coordinates from Stage 2 and The National Map's
+> listing of tile versions. No stock enters this stage.
+
+```bash
+python -m src.ingest.tnm_client      # raw/TNM/: the listings and the parts of the tiles read, not committed
+python -m src.transform.terrain      # curated/potash_terrain.parquet and curated/terrain/<site>.npz
+python -m src.checks.checkpoint3     # exit 0 passed, 1 a rule failed, 2 an input missing
+```
+
+The client needs no account. For each field it asks the TNM Access API
+which tiles of the 1/3 arc-second DEM cover the field's patch, takes the
+newest version of each (D1), and reads only the parts of it that it needs,
+by HTTP range requests: the tile's header and the internal blocks that
+cover the patch (D2). Every response goes to `raw/TNM/` write-once with a
+manifest row, as in Stage 1, the byte range in the row's `revision`; `raw/`
+stays out of git, and the manifest, which is committed, pins the versions.
+For each version the client also stores the metadata record the listing
+links, which names its sources. Stage 3 adds `tifffile` and `imagecodecs`
+(reading the tiles), `rasterio` (rule E3) and `scikit-image` (rule E5) to
+`requirements.txt`.
+
+Terrain is a covariate available at 10 m for all eight fields. In a
+Michigan field sampled on a 61 m grid, maps of soil carbon that drew on
+terrain attributes did better than ordinary kriging, while on a 30 m grid
+the methods differed little (Mueller & Pierce 2003): the question Stage 4's
+benchmark puts to these fields.
+
+### Decisions, fixed before any elevation
+
+| | Decision | Why |
+|---|---|---|
+| D1 source | USGS 3DEP 1/3 arc-second DEM (about 10 m), as The National Map distributes it: GeoTIFF tiles of 1 × 1 degree with 6 cells of overlap on every side, in geographic coordinates on NAD83, elevations in metres on NAVD88. For each block a patch touches, the version titled "USGS 1/3 Arc Second" with the latest publication date in the TNM Access API's listing on the day of the pull. A later pull fetches the versions the manifest records, not newer ones | One seamless DEM with full coverage of the conterminous US (USGS), so the eight fields stand on the same footing, and in the public domain. USGS updates the tiles as new sources arrive and keeps the older versions under their dates (ScienceBase record), so the newest version is the best available on the day of the pull, and a pinned one can be fetched again |
+| D2 grid and resampling | Each field's patch in its Stage 2 UTM zone (EPSG 32614, 32615 or 32616), with 10 m cells whose edges lie on multiples of 10 m, covering the field's locations and 1,000 m beyond them on every side: 226–275 by 235–269 cells. From each tile only the internal blocks that cover the patch, with two native cells to spare, are read; the tiles are Cloud Optimized GeoTIFFs (USGS). The native values are resampled bilinearly to the patch's cell centres, which PROJ takes from UTM to NAD83 longitude and latitude; where two tiles cover the same native cell (IL-RS straddles 40° N), the newer version's value is used | The coordinates the stocks already have, so a location's cell follows from its x and y. 1,000 m holds the largest neighbourhood (D5, 450 m) with room to spare and gives the flow routing (D6) a kilometre of ground upslope. Reading the blocks alone keeps the pull to megabytes, where the five whole tiles would come to about 2.2 GB. Nearest-neighbour resampling would shift values by up to half a native cell and put steps into the slopes |
+| D3 values at the locations | The elevation and every covariate's grid are interpolated bilinearly, between cell centres, at the location's Stage 2 coordinates | A location seldom falls on a cell's centre, and an interpolated value, unlike the nearest cell's, does not jump as the location moves |
+| D4 slope and curvature | A quadratic in the two coordinates, fitted by least squares to the elevations of an n × n window for n = 3, 9 and 27 (30, 90 and 270 m), its coefficients computed as fixed convolution kernels; from it, the slope (degrees) and the mean curvature (Shary et al. 2002; 1/m, positive on convex ground) at the window's centre | Slope governs where soil and water move, curvature where they converge and collect. On a 5.4 ha toposequence, slope and the wetness index were the terrain attributes most closely correlated with surface organic matter, each explaining about half its variability (Moore et al. 1993), and low-lying, concave parts of a field accumulate organic matter (Adhikari et al. 2022). One method serves every scale: the Evans–Young quadratic, fitted over larger windows as MultiscaleDTM does (Ilich et al. 2023). The best scale is not known in advance: in a forested watershed, total carbon was predicted best from neighbourhoods of 150–300 m, and grids finer than 30 m represented terrain better, while 1–5 m was not necessarily better (Maynard & Johnson 2014). Hence a 10 m grid and three scales, in steps of three up to 270 m (each field's locations span 520–740 m along their longer side), among which Stage 4 selects, as multi-scale terrain analysis for soil mapping does (Behrens et al. 2010). Mean curvature is defined at any slope; profile and plan curvature are curvatures of the slope line and of the contour line (Minár et al. 2020), which do not exist on level ground and are unstable where it is nearly level |
+| D5 topographic position | TPI: a cell's elevation minus the mean elevation of the cells whose centres lie within r of its own, itself excluded (De Reu et al. 2013), for r = 50, 150 and 450 m | Whether a location sits above or below the ground around it. TPI depends on the size of that neighbourhood (De Reu et al. 2013), hence three scales, the largest reaching beyond the field. In a field on Texas Blackland Prairie soils, TPI was among the top predictors of soil-health measures, organic carbon among them, in a random forest (Adhikari et al. 2022) |
+| D6 wetness | TWI = ln(a / tan β) (Beven & Kirkby 1979), computed as Kopecký et al. (2021) recommend: the multiple-flow FD8 algorithm with a flow dispersion of 1.0, a flow width equal to the cell size, and the local slope. The DEM is first filled by Priority-Flood with small increments across filled ground (Barnes et al. 2014), so that every cell drains. Each cell's flow is shared among its lower neighbours in proportion to the slope towards each, drop over distance (FD8 with an exponent of 1; Freeman 1991; Quinn et al. 1991), and leaves the patch where a cell has no lower neighbour inside it. a is the area draining through a cell, itself included, divided by the cell width; tan β is the slope of the 3 × 3 fit (D4) to the filled DEM, but at least 0.001 | With slope, the wetness index was the attribute most closely correlated with surface organic matter on the toposequence (Moore et al. 1993), and in the Texas field a wetness index was the strongest predictor of organic carbon (Adhikari et al. 2022). Against soil moisture measured in 45 temperate-forest plots, the flow algorithm decided how well TWI did, while flow width and slope mattered little; a dispersion near 1.0 did best, and the downslope gradient did worse than the local slope (Kopecký et al. 2021). In tundra too, FD8 did best and withstood elevation errors, and a flow width equal to the cell size, the pseudo-specific catchment area, is the common choice (Riihimäki et al. 2021). No variant is best everywhere (Sørensen et al. 2006), so the guideline's is fixed here rather than tuned to the stocks. The floor is a numerical guard where the filled DEM is level, a rise of 2 cm across the 20 m of a 3 × 3 window, and how much it matters is reported |
+| D7 left out | Aspect, profile and plan curvature (D4), and any comparison with the stocks: Stage 3 reads only the stock table's keys and coordinates, and selects or transforms nothing against the stocks | Aspect is undefined where the ground is level, and it is circular, so it needs a sine and cosine transformation before any use (Amatulli et al. 2018): two covariates for one direction. Choosing among covariates by their relation to the stocks is Stage 4's, under rules written before Stage 4 touches the data |
+| D8 The National Map, not Earth Engine | No account is needed: the tiles are public, and `raw/` stays uncommitted, as in Stages 1 and 2. Earth Engine, which the review of Stage 2 proposed for this stage (ML2), is not used | The author chose the newest tiles on 8 November. Earth Engine's catalogue gives its copy of the collection dates up to May 2022, while The National Map has published newer versions of at least three of the five tiles since: n40w089, under five of the fields, in December 2022 and January 2024; n41w089 in 2022, 2024 and 2026; and n42w097, under NE, in December 2022 and February 2023. The governing rule then holds with no exception, and reading blocks keeps the pull small (D2) |
+| D9 scope | No model and no map of predictions. The covariate grids are kept beside the table, in `curated/terrain/`, for Stages 4 and 5 | Stage 4 gets its own rules once Stage 3 has passed |
+
+### Checkpoint 3: rules
+
+| Rule | Passes when |
+|---|---|
+| E1 provenance | For each field the listing is stored, and each tile's version is the newest "USGS 1/3 Arc Second" version the listing gives for its block. Every response (listings, metadata records, and the header and block ranges) is in `raw/TNM/` with a manifest row whose SHA-256 it matches; the ranges of one version all report the same ETag and total size, so the file did not change between them. The transform reads stored responses only, and none of its reads falls outside a stored range |
+| E2 grid | Every patch grid is in its field's Stage 2 EPSG, has 10 m cells with edges on multiples of 10 m, and reaches at least 1,000 m beyond every location of its field on every side. Every native window covers its patch's cell centres with at least one native cell to spare on every side and holds no nodata cell; where two tiles meet (IL-RS), their cells lie on one lattice |
+| E3 decoding and registration | GDAL, through rasterio, reading the same stored bytes, returns the same native values exactly and the same cell geometry within 1e-9 of a cell; each tile's grid spans the bounding box its listing gives within 0.001 of a cell; and a plane laid on GDAL's cell centres, resampled by this code, is reproduced at every patch cell's centre within 1e-6 m |
+| E4 local derivatives | At every location's cell and for every window, the slope and the mean curvature from the convolution kernels equal those from a direct least-squares fit to the window's elevations (within 1e-9 relative, or 1e-12 absolute near zero), and every TPI equals one computed directly, cell by cell, over its neighbourhood within 1e-9 m. The unit tests reproduce closed forms: on a plane, its slope, zero curvature and zero TPI, and its own value interpolated at any point; on a paraboloid, the slope and mean curvature at every window size, and the TPI its neighbourhood's offsets give |
+| E5 flow | The filled DEM is nowhere below the original, equals it on the patch's edge, and equals scikit-image's morphological reconstruction by erosion, the same fill without the increments, within 1e-6 m; every cell off the edge has a strictly lower neighbour; the accumulated areas equal the solution, by SciPy's sparse solver, of the linear system the flow fractions define, within 1e-9 relative; and the area leaving the patch equals the patch's area within 1e-9 relative. The unit tests check that on a plane sloping along a grid axis each column's accumulated area is that of its own column and the columns upslope of it |
+| E6 table | `curated/potash_terrain.parquet` has 1,163 rows, one per (site, location_id) of the stock table, with eleven covariates: the elevation (D3), slope and curvature at 30, 90 and 270 m, TPI at 50, 150 and 450 m, and TWI; every value finite, every slope in [0°, 90°) |
+
+**Reported, not judged:**
+
+- per field, the patch's size; per tile, the version used, the bytes read
+  against the file's size, and the sources its metadata record names (for
+  the whole block, not the field)
+- at the locations, per field: elevation (lowest, median, highest,
+  interquartile range); the median slope for each window; the interquartile
+  ranges of curvature and TPI at each scale; the range of TWI
+- the fill: the share of each patch's cells it raised, its largest rise and
+  the locations on raised cells
+- the floor of tan β (D6): the share of cells, and of locations, at it, and
+  the Spearman correlation at the locations between TWI with floors of
+  0.0001 and 0.01, which shows how much the choice of 0.001 matters
+- the locations whose upslope area includes a cell on the patch's edge,
+  where the TWI is a lower bound
+- collinearity among the eleven covariates at the locations: Spearman
+  correlations, pooled and per field, and the pairs above 0.9 in absolute
+  value. No stock is involved
+- notebook 03: each field's hillshaded DEM with its locations, and the
+  covariates' grids
+
+**Known limits, accepted:**
+
+- The 1/3 arc-second DEM is seamless but joins sources of different methods
+  and dates. Current 3DEP DEMs come almost entirely from lidar and IfSAR,
+  older ones also from the contours of topographic maps (USGS). A tile's
+  metadata record names its sources for the whole block, not for the field.
+- The source grid is geographic, on NAD83 (USGS), and is resampled to 10 m
+  in UTM: values are smoothed over about a cell, and the 30 m slope inherits
+  that. The locations' coordinates (WGS 84 in Stage 2) and the DEM's NAD83
+  are treated as one datum, as PROJ's default transformation between them
+  does, which leaves coordinates unchanged; E3 tests the registration to
+  the tiles' own grids, not to the ground.
+- The fields' boundaries are not in the files, so the patches include roads,
+  ditches, field edges and farmsteads, and a neighbourhood near a field's
+  edge describes its surroundings as much as the field.
+- TWI describes surface flow inside the patch. Catchments that reach the
+  patch's edge are cut off there (reported); across a filled depression,
+  flow follows the order in which the fill reached its cells, a convention,
+  not a measurement; and tile drainage or irrigation, if a field has them
+  (the files do not say), are not represented.
+- The DEM's dates and the sampling dates differ; the covariates assume the
+  surface did not change in between, which land levelling would break.
+- A core samples a point, while the covariates describe 10 m cells and
+  larger windows, and how precisely the locations were positioned is not
+  known here.
+- A later pull depends on The National Map keeping the dated versions in
+  its historical folder; the manifest's SHA-256 shows whether a pull
+  matches the first.
+
+### References for Stage 3
+
+- Adhikari, K., Smith, D. R., Collins, H. P., et al. (2022). Mapping within-field soil health variations using apparent electrical conductivity, topography, and machine learning. *Agronomy*, 12(5), 1019. https://doi.org/10.3390/agronomy12051019
+- Amatulli, G., Domisch, S., Tuanmu, M.-N., et al. (2018). A suite of global, cross-scale topographic variables for environmental and biodiversity modeling. *Scientific Data*, 5, 180040. https://doi.org/10.1038/sdata.2018.40
+- Barnes, R., Lehman, C., & Mulla, D. (2014). Priority-flood: An optimal depression-filling and watershed-labeling algorithm for digital elevation models. *Computers & Geosciences*, 62, 117–127. https://doi.org/10.1016/j.cageo.2013.04.024
+- Behrens, T., Zhu, A.-X., Schmidt, K., et al. (2010). Multi-scale digital terrain analysis and feature selection for digital soil mapping. *Geoderma*, 155(3–4), 175–185. https://doi.org/10.1016/j.geoderma.2009.07.010
+- Beven, K. J., & Kirkby, M. J. (1979). A physically based, variable contributing area model of basin hydrology. *Hydrological Sciences Bulletin*, 24(1), 43–69. https://doi.org/10.1080/02626667909491834
+- De Reu, J., Bourgeois, J., Bats, M., et al. (2013). Application of the topographic position index to heterogeneous landscapes. *Geomorphology*, 186, 39–49. https://doi.org/10.1016/j.geomorph.2012.12.015
+- Freeman, T. G. (1991). Calculating catchment area with divergent flow based on a regular grid. *Computers & Geosciences*, 17(3), 413–422. https://doi.org/10.1016/0098-3004(91)90048-I
+- Ilich, A. R., Misiuk, B., Lecours, V., et al. (2023). MultiscaleDTM: An open-source R package for multiscale geomorphometric analysis. *Transactions in GIS*, 27(4), 1164–1204. https://doi.org/10.1111/tgis.13067
+- Kopecký, M., Macek, M., & Wild, J. (2021). Topographic Wetness Index calculation guidelines based on measured soil moisture and plant species composition. *Science of the Total Environment*, 757, 143785. https://doi.org/10.1016/j.scitotenv.2020.143785
+- Maynard, J. J., & Johnson, M. G. (2014). Scale-dependency of LiDAR derived terrain attributes in quantitative soil-landscape modeling: Effects of grid resolution vs. neighborhood extent. *Geoderma*, 230–231, 29–40. https://doi.org/10.1016/j.geoderma.2014.03.021
+- Minár, J., Evans, I. S., & Jenčo, M. (2020). A comprehensive system of definitions of land surface (topographic) curvatures, with implications for their application in geoscience modelling and prediction. *Earth-Science Reviews*, 211, 103414. https://doi.org/10.1016/j.earscirev.2020.103414
+- Moore, I. D., Gessler, P. E., Nielsen, G. A., et al. (1993). Soil attribute prediction using terrain analysis. *Soil Science Society of America Journal*, 57(2), 443–452. https://doi.org/10.2136/sssaj1993.03615995005700020026x
+- Mueller, T. G., & Pierce, F. J. (2003). Soil carbon maps: Enhancing spatial estimates with simple terrain attributes at multiple scales. *Soil Science Society of America Journal*, 67(1), 258–267. https://doi.org/10.2136/sssaj2003.2580
+- Quinn, P., Beven, K., Chevallier, P., et al. (1991). The prediction of hillslope flow paths for distributed hydrological modelling using digital terrain models. *Hydrological Processes*, 5(1), 59–79. https://doi.org/10.1002/hyp.3360050106
+- Riihimäki, H., Kemppinen, J., Kopecký, M., et al. (2021). Topographic Wetness Index as a proxy for soil moisture: The importance of flow-routing algorithm and grid resolution. *Water Resources Research*, 57(10), e2021WR029871. https://doi.org/10.1029/2021WR029871
+- Shary, P. A., Sharaya, L. S., & Mitusov, A. V. (2002). Fundamental quantitative methods of land surface analysis. *Geoderma*, 107(1–2), 1–32. https://doi.org/10.1016/S0016-7061(01)00136-7
+- Sørensen, R., Zinko, U., & Seibert, J. (2006). On the calculation of the topographic wetness index: evaluation of different methods based on field observations. *Hydrology and Earth System Sciences*, 10(1), 101–112. https://doi.org/10.5194/hess-10-101-2006
+- U.S. Geological Survey. 1/3rd arc-second Digital Elevation Models (DEMs), USGS National Map 3DEP Downloadable Data Collection: the tiles, their updates and their historical versions, https://sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5; the versions, sizes, bounding boxes and metadata links as the TNM Access API lists them for the fields' extents (8 November 2026), https://tnmaccess.nationalmap.gov/api/v1/products
+- USGS FAQs on the DEMs' datums and coverage, https://www.usgs.gov/faqs/what-projection-horizontal-datum-vertical-datum-and-resolution-a-usgs-digital-elevation-model; their sources, https://www.usgs.gov/faqs/what-data-sources-are-used-produce-3d-elevation-program-3dep-dems; and their conversion to Cloud Optimized GeoTIFF, https://www.usgs.gov/faqs/what-happened-gridfloat-arcgrid-and-img-formats-elevation-data-national-map
+- Earth Engine's catalogue page for its copy of the collection, for the dates it covers: https://developers.google.com/earth-engine/datasets/catalog/USGS_3DEP_10m_collection

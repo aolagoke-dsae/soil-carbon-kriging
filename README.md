@@ -7,12 +7,12 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 2 run (07.11.2026).** Both datasets are pulled and pass
-> Checkpoint 1, 9 rules of 9, and Stage 2 passes Checkpoint 2, 9 of 9: the
-> stocks, the REML covariance models with their intervals and the pooling
-> test, and the gstat-style baseline beside them ([`RUNBOOK.md`](RUNBOOK.md),
-> Stage 2). Each stage's rules are fixed by a commit before its data is
-> touched. Nothing has been kriged yet.
+> **Status: Stage 2 run (07.11.2026); Stage 3's rules fixed (08.11.2026).**
+> Both datasets are pulled and pass Checkpoint 1, 9 rules of 9, and Stage 2
+> passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
+> their intervals and the pooling test, and the gstat-style baseline beside
+> them ([`RUNBOOK.md`](RUNBOOK.md), Stage 2). Each stage's rules are fixed
+> by a commit before its data is touched. Nothing has been kriged yet.
 
 ## Why
 
@@ -54,7 +54,9 @@ the pulls and the checkpoint is in [`RUNBOOK.md`](RUNBOOK.md), Stage 1.
   Python 3.11 and 3.14.
 - **Not yet:** everything from Stage 3 on: the terrain covariates, kriging
   and the kriging variance, the machine-learning benchmark, and the
-  comparison with the design-based estimate.
+  comparison with the design-based estimate. Stage 3's rules, for terrain
+  covariates from the newest USGS 3DEP tiles, were fixed on 08.11.2026; no
+  elevation has been fetched.
   Stage 2's rules were fixed on 05.11.2026, after a review against current
   practice in [`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md). After them:
   no kriging or kriging variance, no machine-learning benchmark, no

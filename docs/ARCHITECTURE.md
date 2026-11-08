@@ -10,10 +10,10 @@ passing checkpoint, and the honesty rules. Only what differs is recorded here.
 
 | Layer | Standard | Here | Why |
 |---|---|---|---|
-| Ingestion | `requests` clients | The same, against two open APIs without a token: figshare REST API v2 (version pinned, size and MD5 per file) and OGC WFS 2.0 (paged, sorted by `pointid`) | Both sources publish through an API, so no browser download is needed |
+| Ingestion | `requests` clients | The same, against open APIs without a token: figshare REST API v2 (version pinned, size and MD5 per file) and OGC WFS 2.0 (paged, sorted by `pointid`); from Stage 3, the TNM Access API and HTTP range requests on The National Map's DEM tiles, reading only the blocks that cover the fields | Every source publishes through an API or plain HTTPS, so no browser download is needed |
 | Warehouse | DuckDB + dbt | None. From Stage 2 the transforms write Parquet to `curated/`, which is rebuilt from `raw/` and not committed | Two tables of a few thousand rows. Revisit at Stage 6, if national covariates are joined at scale |
-| Analysis | NumPy | GeoPandas and SciPy now. From Stage 2: REML and the gstat-style baseline in NumPy and SciPy, with scikit-learn and scikit-gstat for the independent checks (rules R1, V2, V3); from Stage 4, forests for the benchmark | Geostatistics by REML, as current practice recommends (`docs/REVIEW_STAGE2.md`). A library enters `requirements*.txt` when a stage uses it, not before |
-| Earth Engine | not in the standard | Stage 3 only, to extract terrain values at the sampling locations | The values are committed (USGS 3DEP is public domain), so no result needs an Earth Engine account: the governing rule holds if the account lapses |
+| Analysis | NumPy | GeoPandas and SciPy now. From Stage 2: REML and the gstat-style baseline in NumPy and SciPy, with scikit-learn and scikit-gstat for the independent checks (rules R1, V2, V3); from Stage 3, terrain analysis in NumPy and SciPy, the tiles read with tifffile, and rasterio (GDAL) and scikit-image for the independent checks (rules E3, E5); from Stage 4, forests for the benchmark | Geostatistics by REML, as current practice recommends (`docs/REVIEW_STAGE2.md`). A library enters `requirements*.txt` when a stage uses it, not before |
+| Earth Engine | not in the standard | Not used. The review of Stage 2 proposed it for Stage 3 (ML2); Stage 3 reads the newest USGS DEM tiles from The National Map instead (RUNBOOK, Stage 3, D8) | Earth Engine's copy of the DEM ends in May 2022, and The National Map needs no account, so the governing rule holds with no exception |
 | Publication | Quarto → GitHub Pages | Not yet | After Stage 4, when there is a result to publish |
 
 Notebooks are percent-cell Python (`notebooks/*.py`), never `.ipynb`, and
