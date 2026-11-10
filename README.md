@@ -7,14 +7,19 @@ site locations are offset by up to 4 km for data protection.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
-> **Status: Stage 4 run (08.11.2026): Checkpoint 4 passed, 11 of 11.**
+![IL-RT, one of the eight fields: the predicted soil organic carbon stock at 2,903 cells of 10 m beside its predictive standard deviation, with the 245 sampled locations](docs/figures/map_IL-RT.png)
+
+*IL-RT, one of the eight fields: the stock in 0–30 cm predicted at each 10 m cell by Bayesian kriging of 245 samples (dots), beside its uncertainty, lowest at the samples. In cross-validation the field's kriging has a modelling efficiency of 0.57, and its 90 % intervals hold 89.5 % of the held-out stocks.*
+
+> **Status: Stage 4 run (08.11.2026, completed 10.11.2026): Checkpoint 4 passed, 13 of 13.**
 > Both datasets are pulled and pass Checkpoint 1, 9 rules of 9; Stage 2
 > passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
 > their intervals and the pooling test, and the gstat-style baseline beside
 > them; Stage 3 passes Checkpoint 3, 6 of 6: eleven terrain covariates at
 > every location, from the newest USGS 3DEP tiles; and Stage 4 passes
-> Checkpoint 4, 11 of 11: Bayesian kriging cross-validated at all 1,163
-> locations under three mean models, against two forests
+> Checkpoint 4, 13 of 13: Bayesian kriging cross-validated at all 1,163
+> locations under three mean models, against two forests, its kriging
+> checked against GSTools, and maps of all eight fields
 > ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 to 4). Each stage's rules are fixed
 > by a commit before its data is touched; Stage 2's followed a review
 > against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
@@ -69,15 +74,24 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   scored at every location by three repeats of ten-fold cross-validation on
   the CRPS, PICP and QCP, and checked against the bordered kriging system,
   explicit inverses, Stage 2's REML likelihood, a calibration simulation and
-  the trees' own leaves (Checkpoint 4, 11/11 rules); 207 unit tests, none
-  of which makes a request; a CI workflow for Python 3.11 and 3.14.
+  the trees' own leaves, and against GSTools, an independent geostatistics
+  library, which reproduces its kriging within 10⁻¹⁴; maps of the
+  predictive mean and standard deviation at every 10 m cell of the eight
+  fields, checked against the cross-validation's own predictive
+  (Checkpoint 4, 13/13 rules); 223 unit tests, none of which makes a
+  request; a CI workflow for Python 3.11 and 3.14.
 - **What Stage 4 found:** the selected kriging's 90 % intervals hold 88 to
   91 % of the held-out stocks at every field; carrying the parameters'
   uncertainty widens the predictive variance by 2 to 12 % against plug-in
   kriging; terrain as an external drift is selected at four fields of eight;
   the selected kriging scores better than the quantile regression forest at
-  seven fields and better than the forest with kriged residuals at five
-  ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result*).
+  seven fields and better than the forest with kriged residuals at five;
+  its mean squared deviation ratio (MSDR), 1.06 over the eight fields
+  against plug-in kriging's 1.11, shows its variance about right where the
+  plug-in's is too small ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result* and
+  *Addendum: result*).
+
+  ![Calibration: the share of held-out stocks below each predictive quantile, for Bayesian kriging, plug-in kriging and the quantile regression forest, the eight fields pooled and each field's departure from the 1:1 line](docs/figures/calibration.png)
 - **Not yet:** each field's mean stock by block kriging against the
   stratified, design-based estimate the paper evaluates (Stage 5), and the
   national-scale model for BZE-LW (Stage 6). Neither has its rules yet.

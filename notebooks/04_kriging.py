@@ -9,15 +9,14 @@
 # D10: the selected kriging's predictive mean and 90 % interval width on
 # Stage 3's 10 m cells inside each field's location hull, with QRF's beside.
 #
-# Needs `curated/potash_cv.parquet` and the other tables of Stage 4 (RUNBOOK,
-# Stage 4) and `requirements-figures.txt`. The maps take a few minutes; each
-# field's cells are cached in `notebooks/scratch/`, which git ignores, with
-# the figures.
+# Needs `curated/potash_cv.parquet` and the other tables of Stage 4, the maps
+# of `python -m src.transform.maps` (RUNBOOK, Stage 4 and its Addendum) and
+# `requirements-figures.txt`. The figures go to `notebooks/scratch/`, which
+# git ignores.
 
 # %%
 import os
 import sys
-import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] if "__file__" in globals() else Path.cwd().resolve()
@@ -31,10 +30,9 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
-from scipy.spatial import ConvexHull, Delaunay
+from scipy.spatial import ConvexHull
 
-from src.transform import forests as F, kriging as K, reml as M, scores as SC
-from src.transform import patches as P
+from src.transform import forests as F, kriging as K, scores as SC
 
 FIGS = ROOT / "notebooks" / "scratch"
 FIGS.mkdir(parents=True, exist_ok=True)
@@ -101,159 +99,23 @@ plt.close(fig)
 # %% [markdown]
 # ## The maps: predicting at the 10 m cells
 #
-# Kriging at a cell is the selected model's Bayesian predictive from all the
-# field's stocks (D3), for a new observation there, nugget included, as in the
-# cross-validation. Every grid point's correlation matrix is diagonalised once,
-# R = U diag(l) U', so that C = (1 - tau) R + tau I has the eigenvalues
-# (1 - tau) l + tau for every nugget-to-sill ratio at the cost of one: the same
-# algebra as `kriging.evaluate`, organised for thousands of targets. Grid
-# points whose posterior weight is below 1e-12 of the largest are left out of
-# the maps' mixtures (they move no quantile by more than about 1e-9). QRF is
-# one forest trained on all 1,163 stocks, with D7's settings.
+# `python -m src.transform.maps` computes them (RUNBOOK, Stage 4, Addendum,
+# D10 amended) into `curated/potash_maps.parquet`. Kriging at a cell is the
+# selected model's Bayesian predictive from all the field's stocks (D3), for a
+# new observation there, nugget included, as in the cross-validation; QRF is
+# one forest trained on all 1,163 stocks, with D7's settings. Rule K7 checks
+# the kriging against `kriging.evaluate` and `kriging.predictive`. Until
+# 10.11.2026 this notebook computed the maps itself; the module computes them
+# the same way, and reproduced the notebook's cells within 2e-13 Mg C/ha.
 
 # %%
-def load_grid(site):
-    with np.load(K.CURATED / "terrain" / f"{site}.npz") as z:
-        return {k: z[k] for k in z.files}
+from src.transform import maps as MP
 
-
-def hull_cells(site, g):
-    """The 10 m cells whose centres lie inside the field's location hull, with
-    every covariate defined: rows, columns, coordinates and covariates."""
-    ny, nx = g["elevation"].shape
-    cell = float(g["cell"])
-    xs = float(g["x0"]) + (np.arange(nx) + 0.5) * cell
-    ys = float(g["y1"]) - (np.arange(ny) + 0.5) * cell
-    X, Y = np.meshgrid(xs, ys)
-    inside = Delaunay(fields[site].xy).find_simplex(np.c_[X.ravel(), Y.ravel()]) >= 0
-    rows, cols = np.divmod(np.flatnonzero(inside), nx)
-    cov = np.column_stack([g[c][rows, cols].astype(float) for c in K.COVARIATES])
-    ok = np.all(np.isfinite(cov), axis=1)
-    return rows[ok], cols[ok], np.c_[X[rows[ok], cols[ok]], Y[rows[ok], cols[ok]]], cov[ok]
-
-
-def drift_of(site):
-    fd = fields[site]
-    model = next(m for m in K.models_for(site, record, aniso, boxcox) if m.name == "c")
-    return K.drift_candidates()[K.choose(K.ml_table(model.grid(), fd.xy, fd.z, fd.cov))]
-
-
-def shared_others_all(site, model):
-    """Under (b) at a small field: the other fields' integrated likelihoods, all stocks."""
-    total = 0.0
-    for other in SITES:
-        if other != site:
-            o = fields[other]
-            total = total + K.evaluate(model.grid(), o.xy, o.z, M.design(o.xy, "quadratic", o.xy.mean(axis=0))).logpost
-    return total
-
-
-def kriging_cells(site, xy0, cov0):
-    """Mean, 5 % and 95 % quantiles of the selected model's predictive at each cell."""
-    fd = fields[site]
-    model = next(m for m in K.models_for(site, record, aniso, boxcox) if m.name == selected[site])
-    drift = drift_of(site) if model.mean == "drift" else ()
-    X, X0 = K.design(model.mean, fd.xy, xy0, fd.cov, cov0, drift)
-    n, p = X.shape
-    D, D0 = K.distances(fd.xy, fd.xy, model.angle, model.ratio), K.distances(xy0, fd.xy, model.angle, model.ratio)
-    grid = model.grid()
-    lp = K.evaluate(grid, fd.xy, fd.z, X, angle=model.angle, ratio=model.ratio).logpost
-    if model.shared:
-        lp = lp + shared_others_all(site, model)
-    keep = lp >= lp.max() + np.log(1e-12)
-    w = np.exp(lp[keep] - lp.max())
-    w /= w.sum()
-    locs, scales, g = [], [], 0
-    for a, nu, taus in grid.points():
-        if not keep[g:g + len(taus)].any():
-            g += len(taus)
-            continue
-        lam, U = np.linalg.eigh(M.correlation(model.family, D, a, nu))
-        Uz, UX, P0 = U.T @ fd.z, U.T @ X, U.T @ M.correlation(model.family, D0, a, nu).T
-        for tau in taus:
-            if keep[g]:
-                dinv = 1.0 / ((1.0 - tau) * lam + tau)
-                XCX = UX.T @ (dinv[:, None] * UX)
-                beta = np.linalg.solve(XCX, UX.T @ (dinv * Uz))
-                r = Uz - UX @ beta
-                s2 = float(r @ (dinv * r)) / (n - p)
-                Kw = (1.0 - tau) * P0
-                pred = X0 @ beta + Kw.T @ (dinv * r)
-                G = X0.T - UX.T @ (dinv[:, None] * Kw)
-                v1 = 1.0 - ((Kw * Kw) * dinv[:, None]).sum(axis=0) + (G * np.linalg.solve(XCX, G)).sum(axis=0)
-                locs.append(pred)
-                scales.append(np.sqrt(s2 * np.maximum(v1, 1e-12)))
-            g += 1
-    locs, scales = np.array(locs).T, np.array(scales).T          # cells x components
-    return mixture_summary(w, locs, scales, float(n - p))
-
-
-def mixture_summary(w, locs, scales, df, chunk=400):
-    """The mean and the 5 and 95 % quantiles of each cell's mixture of t, by
-    Newton's method from the normal with the mixture's mean and variance."""
-    table, out = SC.t_table(df), []
-    for s in range(0, len(locs), chunk):
-        L, S = locs[s:s + chunk], scales[s:s + chunk]
-        mean = L @ w
-        sd = np.sqrt((S ** 2 * df / (df - 2.0) + L ** 2) @ w - mean ** 2)
-        qs = []
-        for level in (0.05, 0.95):
-            x = mean + sd * SC.t_ppf(level, df)
-            for _ in range(60):
-                z = (x[:, None] - L) / S
-                err = table.cdf(z) @ w - level
-                if np.max(np.abs(err)) < 1e-12:
-                    break
-                x = x - err / ((SC.t_pdf(z, df) / S) @ w)
-            qs.append(x)
-        out.append(np.c_[mean, qs[0], qs[1]])
-    return np.vstack(out)
-
-
-stacked = F.stack(pd.read_parquet(K.STOCKS), pd.read_parquet(K.TERRAIN), pd.read_parquet(F.FO.OUT))
-forest_all = None
-
-
-def qrf_cells(site, xy0, cov0, g):
-    global forest_all
-    if forest_all is None:
-        forest_all = F.forest(F.SEED)
-        forest_all.set_params(oob_score=False, n_jobs=-1)
-        forest_all.fit(stacked.X, stacked.y)
-    lon, lat = P.transformer(int(g["epsg"]), "EPSG:4326").transform(xy0[:, 0], xy0[:, 1])
-    W = F.qrf_weights(forest_all, stacked.X, np.column_stack([lon, lat, cov0]))
-    out = []
-    for w in W:
-        d = SC.Weighted(stacked.y, w)
-        q = d.quantiles([0.05, 0.95])
-        out.append([d.mean(), q[0], q[1]])
-    return np.array(out)
-
-
-# The cache lets a run stop between fields: SCK_MAP_SITES names the fields to
-# compute in this run (all by default), SCK_MAP_BUDGET the seconds after which
-# no new field is started.
-ONLY = os.environ.get("SCK_MAP_SITES")
-BUDGET = float(os.environ.get("SCK_MAP_BUDGET", "inf"))
-start = time.monotonic()
-maps = {}
-for site in SITES:
-    path = FIGS / f"04_cells_{site}.parquet"
-    if path.exists():
-        maps[site] = pd.read_parquet(path)
-        continue
-    if (ONLY and site not in ONLY.split(",")) or time.monotonic() - start > BUDGET:
-        print(f"{site}: not computed in this run")
-        continue
-    g = load_grid(site)
-    rows, cols, xy0, cov0 = hull_cells(site, g)
-    k = kriging_cells(site, xy0, cov0)
-    q = qrf_cells(site, xy0, cov0, g)
-    maps[site] = pd.DataFrame({"row": rows, "col": cols, "kriging_mean": k[:, 0],
-                               "kriging_width": k[:, 2] - k[:, 1], "qrf_mean": q[:, 0],
-                               "qrf_width": q[:, 2] - q[:, 1]})
-    maps[site].to_parquet(path, index=False)
-    print(f"{site}: {len(rows)} cells, {time.monotonic() - start:.0f} s")
+load_grid = MP.load_grid
+maps = {site: m.assign(kriging_width=m["kriging_q95"] - m["kriging_q05"],
+                       qrf_width=m["qrf_q95"] - m["qrf_q05"]).reset_index(drop=True)
+        for site, m in pd.read_parquet(MP.OUT).groupby("site")}
+print({site: len(m) for site, m in maps.items()})
 
 # %% [markdown]
 # ## The maps

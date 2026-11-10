@@ -15,7 +15,7 @@ Plan, not to this file.
 | 1 | Pull both datasets through their clients; Checkpoint 1 | **run** 05.11.2026: Checkpoint 1 passed, 9/9 rules |
 | 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
-| 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules |
+| 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
 | 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
 | 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
 
@@ -1414,6 +1414,102 @@ the two figures.
   its quantiles in the wrong places, which QCP shows.
 - The map figure shows one field of eight; notebook 04 draws all eight.
 
+### Addendum: result
+
+**Passed on 10 November 2026: Checkpoint 4, 13/13 rules.** The eleven
+rules of 8 November came from their cache with the same results:
+`checkpoint4.py`'s code hash, which keys the cache, did not change. K6 and
+K7 passed at their first run. After Stage 4's three commands:
+
+```bash
+python -m src.transform.maps         # 16,072 cells in 8 fields -> curated/potash_maps.parquet
+python -m src.checks.checkpoint4     # Checkpoint 4 PASSED: 13/13 rules
+python -m src.report.figures         # docs/figures/: map_IL-RT.png, calibration.png and calibration.csv
+```
+
+They ran in the build environment of 8 November, with GSTools 1.7.0 and
+matplotlib 3.10.9 added, BLAS on one thread. The maps ran in cached steps (a
+field's posterior, its kriging in blocks of 1,200 cells, its QRF), about
+seven minutes in all; K7's recomputations took 74 s and the checkpoint, from
+its cache, 21 s.
+
+| Rule | Result |
+|---|---|
+| K6 an independent library | repeat 0, fold 0, 360 held-out predictions under (a), (b) and (c) in all eight fields: GSTools, given the run's grid maximum and its sill, returns the plug-in's mean within 8.3 × 10⁻¹⁵ (relative) and its variance within 2.7 × 10⁻¹⁵ of the sill (9.5 × 10⁻¹⁵ of itself). The 24 cases take in the anisotropy at IL-RD and IL-RT, IL-RT's Matérn, (c)'s drift at every field and the grid's edges: a nugget-to-sill ratio of 10⁻⁶ in ten of them, a range at its upper bound in five |
+| K7 the maps | the maps hold exactly the 16,072 cells inside the eight hulls with every covariate finite; at 400 sampled cells the kriging's mean and standard deviation agree with `kriging.evaluate` and `kriging.predictive` within 1.2 × 10⁻¹³ and 2.1 × 10⁻¹² (relative), its 5 and 95 % quantiles within 1.6 × 10⁻¹² of the 90 % width; QRF's mean and quantiles equal those of the forest refitted, bit for bit, its weights summing to one within 4 × 10⁻¹⁵ |
+
+**The maps against notebook 04.** The module reproduces the cells the
+notebook computed on 8 November: the same cells in every field, the
+kriging's means and 90 % widths within 2.0 × 10⁻¹³ Mg C/ha (identical at
+IL-BR and IL-DG), QRF's identical. Notebook 04 now draws its maps from the
+table.
+
+**D12, the deviation ratios**, under each field's selected mean model: MSDR
+and its median, then the share of held-out stocks inside the 80 and 95 %
+intervals. The checkpoint's report gives every mean model.
+
+| Field | Bayesian kriging | Plug-in kriging | QRF | RF-RK | PICP 80 %: kriging / plug-in / QRF | PICP 95 %: kriging / plug-in / QRF |
+|---|---|---|---|---|---|---|
+| IL-BR (a) | 1.03 / 0.31 | 1.28 / 0.42 | 0.28 / 0.16 | 0.86 / 0.29 | 0.772 / 0.756 / 0.867 | 0.944 / 0.917 / 0.972 |
+| IL-DG (c) | 1.22 / 0.27 | 1.27 / 0.30 | 0.68 / 0.19 | 1.07 / 0.28 | 0.845 / 0.842 / 0.842 | 0.942 / 0.931 / 0.976 |
+| IL-MC (b) | 0.97 / 0.42 | 1.02 / 0.43 | 0.27 / 0.14 | 0.90 / 0.45 | 0.782 / 0.763 / 0.994 | 0.929 / 0.923 / 1.000 |
+| IL-PT (c) | 1.10 / 0.44 | 1.14 / 0.47 | 0.54 / 0.27 | 0.99 / 0.45 | 0.757 / 0.764 / 0.862 | 0.935 / 0.935 / 1.000 |
+| IL-RD (c) | 1.08 / 0.46 | 1.11 / 0.46 | 0.85 / 0.37 | 1.00 / 0.38 | 0.806 / 0.809 / 0.852 | 0.952 / 0.948 / 0.969 |
+| IL-RS (c) | 1.08 / 0.30 | 1.10 / 0.31 | 1.07 / 0.38 | 0.98 / 0.30 | 0.837 / 0.834 / 0.782 | 0.936 / 0.932 / 0.936 |
+| IL-RT (a) | 1.01 / 0.37 | 1.03 / 0.38 | 0.87 / 0.43 | 0.97 / 0.40 | 0.848 / 0.848 / 0.823 | 0.944 / 0.939 / 0.961 |
+| NE (b) | 1.01 / 0.31 | 1.12 / 0.35 | 0.44 / 0.18 | 0.91 / 0.35 | 0.833 / 0.810 / 0.910 | 0.924 / 0.907 / 0.986 |
+
+Pooled over the eight fields, the selected Bayesian kriging's MSDR is 1.06,
+its plug-in twin's 1.11, RF-RK's 0.97 and QRF's 0.75. The plug-in's MSDR
+exceeds the Bayesian's in all 24 pairs of field and mean model: its
+variance is too small, as its coverage already showed, and carrying the
+parameters' uncertainty brings MSDR to between 0.97 and 1.10 at seven
+fields, and to 1.22 at IL-DG under (c). Of the three Bayesian models, (c)
+has the highest MSDR at seven fields of eight, as its limits expected: the
+choice of drift adds error that its predictive leaves out. QRF's variance is
+far too large at the four small fields and NE (MSDR 0.27 to 0.68), and about
+right at IL-RS (1.07). The selected kriging's medians, 0.27 to 0.46, lie
+below the Gaussian's 0.455 at seven fields: more held-out stocks fall close
+to the predictive mean than it expects, and a few fall far enough to bring
+the mean back to about 1, so the errors have heavier tails than the
+predictive. Its 80 and 95 % intervals hold 0.757 to 0.848 and 0.924 to 0.952
+of the stocks.
+
+**The figures (D11).** `docs/figures/map_IL-RT.png`: the rule picked IL-RT,
+whose selected kriging has the highest MEC, 0.57. Its predictive mean runs
+from 35.1 to 95.5 Mg C/ha, lower along a band in the west of the field and
+higher in the east; its standard deviation from 8.4 to 11.3 Mg C/ha, lowest
+at the sampled locations and close to its largest a grid spacing away. At
+every cell of every field the 90 % interval is 3.25 to 3.36 standard
+deviations wide (3.29 for a normal), so the map of the standard deviation is
+also a map of the interval. `docs/figures/calibration.png`, with the values
+it draws in `calibration.csv`: pooled over the eight fields, all three
+predictives lie within 0.03 of the 1:1 line (Bayesian kriging 0.028,
+plug-in 0.024, QRF 0.028); field by field, the two krigings stay within
+0.072, while QRF departs by up to 0.15 at IL-MC, 0.12 at IL-BR and 0.10 at
+NE. Pooling weights the large fields, where QRF is nearly calibrated, and
+hides its departures at the small ones.
+
+**Choices made while building**, where the rules left the detail open:
+
+- **K6** reads each plug-in's grid maximum from the kriging run's cache,
+  under the key the run gave it, and would recompute the fold as the run
+  does where the cache lacked it; it lacked none.
+- **K7** draws its 50 cells per field with the seed 20,261,115 (Stage 4's
+  20,261,108 + 7), field by field in alphabetical order, and recomputes
+  (c)'s drift from all the stocks rather than reading the map's. Its
+  recomputations are cached under this module's own code hash.
+- **The maps' blocks** of 1,200 cells are a multiple of the 400 cells over
+  which the quantiles' Newton iterations are judged, so the blocks change
+  no cell's iterations.
+- **The figures.** Each map's colour scale runs from its own minimum to its
+  maximum. The standard deviation's ramp stops at the ninth of the orange
+  ramp's thirteen steps, so that the large area near its maximum does not
+  read as a solid block. The three series' colours are the palette's first
+  three categorical slots, checked for colour-vision deficiency; the aqua
+  has 2.7:1 contrast against the surface, so its values are also in
+  `calibration.csv`.
+
 ### If it fails
 
 **08.11.2026: the Box-Cox predictive reached below a stock of zero.** D6
@@ -1456,6 +1552,21 @@ off in the middle of a step; the cache writes each step whole or not at
 all, so nothing but that step was lost, and the steps were made shorter
 (the checkpoint's explicit inverses for IL-RT's Matérn, one value of ν at a
 time). Nothing in the record depends on how the work was split.
+
+**10.11.2026: the addendum's first hook changed Checkpoint 4's code hash.**
+K6 and K7 were first wired into the checkpoint through a small helper
+function in `checkpoint4.py`, outside the functions its hash leaves out, so
+the hash, and with it every cached recomputation of 8 November, would have
+changed. Comparing the hash before and after the edit, before any run,
+caught it; the imports now sit inside the orchestration functions, and the
+hash is the one of 8 November.
+
+**10.11.2026: one field's map took longer than a command may run.** IL-RT's
+map, 2,903 cells under a Matérn grid of 8,232 points, did not finish in
+three minutes as one cached step. It is now computed in steps (the
+posterior, the kriging in blocks of 1,200 cells, QRF), each cached. The
+split changes no result beyond rounding: the module matches the notebook's
+cells, computed in one piece, within 2.0 × 10⁻¹³ Mg C/ha.
 
 ### References for Stage 4
 

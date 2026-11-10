@@ -7,9 +7,12 @@ simulation, K5 the drift of (c), M1 forests, S1 scores, R1 record. The
 second paths are direct: the bordered kriging system with its Lagrange
 multipliers (K1), explicit determinants and inverses and Stage 2's own REML
 criterion (K2, K5), the trees' leaves and bootstrap samples one by one (M1),
-quadrature (S1).
+quadrature (S1). The addendum of 10.11.2026 adds K6, the kriging against an
+independent library, GSTools, and K7, the maps against the cross-validation's
+own predictive, with D12's deviation ratios; they live in independent.py, so
+that this module's code hash, which keys the cache, stays as it was.
 
-    python -m src.checks.checkpoint4 [--budget SECONDS]
+    python -m src.checks.checkpoint4 [--budget SECONDS] [--only PARTS]
         exit 0: every rule passed
         exit 1: a rule failed
         exit 2: a curated table is missing
@@ -92,8 +95,12 @@ class NotThere(Exception):
 
 
 def load() -> dict:
+    try:                    # the addendum's maps, imported here so that they stay out of CODE
+        from src.transform import maps as MP
+    except ImportError:
+        import maps as MP
     need = [K.STOCKS, K.TERRAIN, FO.OUT, M.OUT, A.OUT, M.OUT_BOXCOX, K.OUT, K.OUT_DRIFTS, K.OUT_SELECTION,
-            F.OUT, F.OUT_IMPORTANCE, F.OUT_TRAINING, F.OUT_CV]
+            F.OUT, F.OUT_IMPORTANCE, F.OUT_TRAINING, F.OUT_CV, MP.OUT]
     for p in need:
         if not p.exists():
             raise NotThere(p.relative_to(K.ROOT).as_posix())
@@ -105,7 +112,7 @@ def load() -> dict:
             "selection": pd.read_parquet(K.OUT_SELECTION), "forests": pd.read_parquet(F.OUT),
             "importance": pd.read_parquet(F.OUT_IMPORTANCE), "training": pd.read_parquet(F.OUT_TRAINING),
             "models": {s: K.models_for(s, record, aniso, boxcox) for s in sorted(fields)},
-            "bounds": F.own_bounds(record)}
+            "bounds": F.own_bounds(record), "maps": pd.read_parquet(MP.OUT)}
 
 
 def heavy_first(sites) -> list:
@@ -920,15 +927,23 @@ PARTS = ("c2", "k1", "k2", "k2r", "k4", "k5", "m1")
 def warm(d: dict, cache: K.Cache, parts) -> None:
     """Only the recomputations of some rules, into the cache: two such runs
     can share the work before a full run reads it."""
+    try:                    # the addendum's rules, imported here so that they stay out of CODE
+        from src.checks import independent as I
+    except ImportError:
+        import independent as I
     steps = {"c2": lambda: recompute(d, cache), "k1": lambda: k1_algebra(d, cache),
              "k2": lambda: k2_all_stocks(d, cache), "k2r": lambda: k2_refined(d, cache),
              "k4": lambda: k4_calibration(d, cache), "k5": lambda: k5_drift(d, cache),
-             "m1": lambda: m1_forests(d, cache)}
+             "m1": lambda: m1_forests(d, cache), "k7": lambda: I.k7_maps(d, d["maps"], cache)}
     for part in parts:
         steps[part]()
 
 
 def run(budget: Optional[float] = None, only=None) -> tuple[list[Rule], dict]:
+    try:                    # the addendum's rules, imported here so that they stay out of CODE
+        from src.checks import independent as I
+    except ImportError:
+        import independent as I
     d = load()
     cache = K.Cache(CACHE, None if budget is None else time.monotonic() + budget)
     if only:
@@ -941,13 +956,18 @@ def run(budget: Optional[float] = None, only=None) -> tuple[list[Rule], dict]:
     k2, summaries = k2_all_stocks(d, cache)
     k2r, k2_table = k2_refined(d, cache)
     k4, k4_table = k4_calibration(d, cache)
-    rules += [k1, k2, k2r, k3_predictive(d), k4, k5_drift(d, cache), m1_forests(d, cache), s1_scores(d),
-              r1_record(d)]
+    k6, k6_table = I.k6_gstools(d)
+    k7, k7_table = I.k7_maps(d, d["maps"], cache)
+    rules += [k1, k2, k2r, k3_predictive(d), k4, k5_drift(d, cache), k6, k7, m1_forests(d, cache),
+              s1_scores(d), r1_record(d)]
     scores = scores_table(d)
     freq, coef = drift_table(d, summaries, cache)
     unc, post = uncertainty_table(d, summaries)
     tables = {
         "Per field and method (scores per repeat, averaged; coverages pooled over the repeats):": scores,
+        "D12 per field and method: MSDR, the mean of (y - mean)^2 / var, and its median (1 and 0.455 for "
+        "Gaussian errors with the right variance), per repeat and averaged; PICP at 80 and 95 % (repeats "
+        "pooled):": I.deviation_ratios(d["cv"]).round(3),
         "D5: each field's CRPS under (a), (b) and (c), and the mean model selected:": selection_table(d),
         "(c): how often each covariate entered the drift, over the 30 folds:": freq,
         "(c): from all the stocks, the drift the AIC chooses: coefficients per standard deviation, posterior "
@@ -969,6 +989,16 @@ def run(budget: Optional[float] = None, only=None) -> tuple[list[Rule], dict]:
                                                                  for c in ("pred", "var", "drift")}),
         "K2's refined grid per field and mean model:": k2_table,
         "K4: QCP of the Bayesian and the plug-in predictive on the simulated fields:": k4_table.round(3),
+        "K6 per field and mean model: GSTools against the plug-in at the run's grid maximum (the parameters; "
+        "the largest relative error of the predictor, and of the variance against the sill and against "
+        "itself):": k6_table.drop(columns="same_drift").assign(
+            **{c: k6_table[c].map(lambda v: f"{v:.1e}") for c in ("pred", "var_of_sill", "var_relative")},
+            eff_range=k6_table["eff_range"].round(1), sill=k6_table["sill"].round(3)),
+        "K7 per field: the map against kriging.evaluate and kriging.predictive at the sampled cells (largest "
+        "relative error of the mean and sd, of the quantiles against the 90 % width), and QRF's largest "
+        "difference from the forest refitted:": k7_table.assign(
+            **{c: k7_table[c].map(lambda v: f"{v:.1e}")
+               for c in ("kriging_mean", "kriging_sd", "kriging_quantiles", "qrf")}),
     }
     return rules, tables
 
@@ -988,13 +1018,13 @@ def report(rules: list[Rule], tables: Optional[dict], when: Optional[dt.datetime
 
 
 def main(argv: list[str]) -> int:
-    """python -m src.checks.checkpoint4 [--budget SECONDS] [--only c2,k1,k2,k2r,k4,k5,m1]"""
+    """python -m src.checks.checkpoint4 [--budget SECONDS] [--only c2,k1,k2,k2r,k4,k5,m1,k7]"""
     budget, only = None, None
     args = list(argv)
     while args:
         if len(args) >= 2 and args[0] == "--budget":
             budget = float(args[1])
-        elif len(args) >= 2 and args[0] == "--only" and set(args[1].split(",")) <= set(PARTS):
+        elif len(args) >= 2 and args[0] == "--only" and set(args[1].split(",")) <= set(PARTS) | {"k7"}:
             only = args[1].split(",")
         else:
             print(main.__doc__)
