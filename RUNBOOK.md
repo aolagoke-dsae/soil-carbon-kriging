@@ -1341,6 +1341,79 @@ mistook, is still D9's open question; and where the selected models differ
 by less than 1 % (IL-RT, NE), the block kriging of Stage 5 can report how
 much the choice moves the field mean.
 
+### Addendum: rules fixed 10 November 2026
+
+> **Rules fixed on 10 November 2026** by the commit that adds them, after
+> Stage 4 had passed and before anything below was run on the stocks, with
+> two exceptions, both reported and not judged: notebook 04 drew the maps of
+> D10 on 8 November, and the deviation ratios of D12 were computed once from
+> the record while these rules were drafted. GSTools had been run on
+> simulated fields only, to find how its parameters map onto this
+> repository's and how closely the two agree.
+
+The review of 10 November 2026 asked three things of Stage 4 that it did not
+have: its kriging checked against an independent library within 1e-8 on the
+same parameters; MSDR beside PICP and QCP; and maps from code that a rule
+checks, with figures drawn by a script into `docs/figures/`. This addendum
+adds them. The review's check against R's gstat, and its other figures, wait
+for Stage 5 and the report.
+
+```bash
+python -m src.transform.maps         # curated/potash_maps.parquet: the selected kriging and QRF at every 10 m cell in the hulls
+python -m src.checks.checkpoint4     # 13 rules now, K6 and K7 added; exit 0 passed, 1 a rule failed, 2 an input missing
+python -m src.report.figures         # docs/figures/: one field's map beside its uncertainty, and the calibration plot
+```
+
+They follow Stage 4's three commands: the maps need the kriging's and the
+forests' inputs, and K7 needs the maps. GSTools enters `requirements.txt`
+for K6 and nothing else; the figures need `requirements-figures.txt`.
+
+| | Decision | Why |
+|---|---|---|
+| D10 amended: the maps | The maps move from notebook 04 into `src/transform/maps.py`, which computes them as the notebook did and writes `curated/potash_maps.parquet`. At each of Stage 3's 10 m cells whose centre lies inside the field's location hull and whose covariates are all defined: the selected kriging's Bayesian predictive from all the field's stocks, for a new observation at the cell, and QRF's from one forest trained on all 1,163 stocks with D7's settings; for each, its mean, standard deviation, and 5 and 95 % quantiles. Grid points whose posterior weight is below 10⁻¹² of the largest are left out of a cell's mixture, as in the notebook. Notebook 04 draws its maps from the table | What the README shows should come from code that a rule checks (K7), not from a notebook, which is exploration only (`docs/ARCHITECTURE.md`). The standard deviation is new, for D11's map |
+| D11 two figures | `python -m src.report.figures` draws two figures from the curated tables into `docs/figures/`, which is committed. **The map:** one field's predictive mean under the selected kriging beside its predictive standard deviation, on D10's cells, with the sampled locations and their hull. The field is the one whose selected kriging has the highest MEC in the cross-validation, IL-RT (0.57), where location predicts the most. **Calibration:** QCP against the quantile level, with the 1:1 line, for the Bayesian kriging and its plug-in twin, each under the field's selected mean model, and for QRF; the eight fields pooled, and beside it each field's departure from the 1:1 line, the repeats pooled as in D8. The values drawn are written beside the figure as a table | The two the review asks for first: one field's map beside its uncertainty, and whether the intervals hold what they claim, drawn as QCP is drawn to validate the uncertainty of soil maps (Schmidinger & Heuvelink 2023; Szatmári et al. 2026). Departures of a few hundredths are hard to see against the whole 1:1 line, hence each field's departure beside it. The field is fixed by a rule before the figure is drawn |
+| D12 deviation ratios | Per field and method: the mean, over the held-out locations, of each stock's squared error divided by its predictive variance, (y − μ)² / σ², with the mean and variance that `curated/potash_cv.parquet` holds: MSDR. Beside it, the median of the same ratios, and PICP at 80 and 95 % from D8's coverages. MSDR and its median are computed per repeat and averaged, as D8's scores are, for the Bayesian and the plug-in kriging under (a), (b) and (c), QRF, RF-RK and the baseline; D6's transformed predictives keep no variance and are left out | MSDR is the classical check of a kriging variance (Voltz & Webster 1990): close to 1 when the variance is right, above 1 when it is too small. A few large errors inflate it, so the median goes beside it, which for Gaussian errors with the right variance is the median of χ² with one degree of freedom, 0.455 (Lark 2000); for a t or a mixture of t, whose tails are heavier, it is a little lower. The review asks for PICP at 80 and 95 % as well as 50 and 90 % |
+
+**Checkpoint 4, two rules added:**
+
+| Rule | Passes when |
+|---|---|
+| K6 an independent library | For every field and mean model, (a), (b) and (c), at the held-out locations of repeat 0, fold 0: GSTools (Müller et al. 2022), given the parameters of the record's plug-in predictive, returns its mean within 1e-8 relative and its variance within 1e-8 of the sill. The parameters are the grid maximum the run's cache records and the sill there, S² / (n − p), from the field's training stocks in that fold. GSTools takes them in its own terms: the sill split into a partial sill, (1 − τ) times it, and a nugget, τ times it; as length scale a / ln 20 for the exponential, a for the spherical and, for the Matérn, a divided by the distance at which GSTools' own Matérn correlation falls to 0.05; under anisotropy, the ratio as it is and the angle turned from clockwise from north to anticlockwise from east. Ordinary kriging under (a), universal kriging with GSTools' quadratic drift under (b), and kriging with an external drift under (c), on the covariates the fold chose. The check's own code passes the coordinates as kilometres from the training locations' centroid, and the covariates centred and scaled on the training locations: neither changes a kriging predictor, and both keep GSTools' equations well scaled |
+| K7 the maps | The map holds every 10 m cell whose centre lies inside its field's location hull and whose covariates are all finite, and no other. In every field, at 50 of its cells drawn with a fixed seed, the map's kriging mean and standard deviation equal, within 1e-8 relative, those of the cross-validation's own predictive (`kriging.evaluate` and `kriging.predictive`, on the whole grid, from all the field's stocks under the selected mean model), and its 5 and 95 % quantiles equal them within 1e-8 of the 90 % interval's width; and QRF's mean and quantiles there equal those of the same forest's weights, computed afresh from the cells' covariates, within 1e-12, the weights non-negative and summing to one within 1e-12 |
+
+**Why K6 judges the variance against the sill.** Near its data, a smooth
+field's kriging variance is a small difference between two numbers the size
+of the sill, and GSTools forms it by subtraction, from an explicit inverse of
+the kriging matrix. On 60 simulated fields spanning the grids' corners (every
+family, ranges from 30 to 3,000 m on fields 250 to 1,200 m across, ratios
+from 10⁻⁶ to 1, ν from 0.2 to 3, with and without anisotropy, all three mean
+models), GSTools agreed with this repository within 3.1 × 10⁻⁹ in the
+predictor and within 1.5 × 10⁻⁹ of the sill in the variance; but where a
+Matérn with ν = 3 and almost no nugget made the system ill-conditioned, its
+variance departed by up to 8.6 × 10⁻⁴ of itself. On one such field
+(condition number 6.8 × 10⁷), against 40-digit arithmetic, this repository's
+variances were within 4.9 × 10⁻¹⁰ of the exact ones and GSTools' within
+1.1 × 10⁻⁴. At the plug-in's own parameters, K1's two paths already agree
+within 4.1 × 10⁻¹⁵.
+
+**Reported, not judged:** per field and method, MSDR, its median, and PICP
+at 80 and 95 % (D12); K6's largest differences, with the parameters it used;
+the two figures.
+
+**Known limits, accepted:**
+
+- K6 checks the kriging at one point of each grid, the plug-in's. The
+  Bayesian predictive mixes the same kriging over the rest of the grid, whose
+  algebra K1 checks, whose weights K2 checks and whose calibration K4 checks
+  by simulation; GSTools sees only the maximum.
+- The sill K6 gives GSTools is this repository's: GSTools estimates no sill
+  by REML for given correlation parameters. K6 checks the kriging given the
+  parameters, as the review asks, not their estimation, which Stage 2's R1
+  and R2 and K2 check.
+- MSDR judges the variance alone: a predictive whose MSDR is 1 can still put
+  its quantiles in the wrong places, which QCP shows.
+- The map figure shows one field of eight; notebook 04 draws all eight.
+
 ### If it fails
 
 **08.11.2026: the Box-Cox predictive reached below a stock of zero.** D6
@@ -1400,6 +1473,7 @@ time). Nothing in the record depends on how the work was split.
 - Janssen, P. H. M., & Heuberger, P. S. C. (1995). Calibration of process-oriented models. *Ecological Modelling*, 83(1–2), 55–66. https://doi.org/10.1016/0304-3800(95)00084-9
 - Jordan, A., Krüger, F., & Lerch, S. (2019). Evaluating probabilistic forecasts with scoringRules. *Journal of Statistical Software*, 90(12), 1–37. https://doi.org/10.18637/jss.v090.i12
 - Kitanidis, P. K. (1986). Parameter uncertainty in estimation of spatial functions: Bayesian analysis. *Water Resources Research*, 22(4), 499–507. https://doi.org/10.1029/WR022i004p00499
+- Lark, R. M. (2000). A comparison of some robust estimators of the variogram for use in soil survey. *European Journal of Soil Science*, 51(1), 137–157. https://doi.org/10.1046/j.1365-2389.2000.00280.x
 - Li, J., Heap, A. D., Potter, A., & Daniell, J. J. (2011). Application of machine learning methods to spatial interpolation of environmental variables. *Environmental Modelling & Software*, 26(12), 1647–1659. https://doi.org/10.1016/j.envsoft.2011.07.004
 - Makungwe, M., Chabala, L. M., Chishala, B. H., & Lark, R. M. (2021). Performance of linear mixed models and random forests for spatial prediction of soil pH. *Geoderma*, 397, 115079. https://doi.org/10.1016/j.geoderma.2021.115079
 - Malone, B. P., McBratney, A. B., & Minasny, B. (2011). Empirical estimates of uncertainty for mapping continuous depth functions of soil attributes. *Geoderma*, 160(3–4), 614–626. https://doi.org/10.1016/j.geoderma.2010.11.013
@@ -1410,6 +1484,7 @@ time). Nothing in the record depends on how the work was split.
 - Milà, C., Mateu, J., Pebesma, E., & Meyer, H. (2022). Nearest neighbour distance matching Leave-One-Out Cross-Validation for map validation. *Methods in Ecology and Evolution*, 13(6), 1304–1316. https://doi.org/10.1111/2041-210X.13851
 - Minasny, B., Vrugt, J. A., & McBratney, A. B. (2011). Confronting uncertainty in model-based geostatistics using Markov Chain Monte Carlo simulation. *Geoderma*, 163(3–4), 150–162. https://doi.org/10.1016/j.geoderma.2011.03.011
 - Mueller, T. G., & Pierce, F. J. (2003). Soil carbon maps: Enhancing spatial estimates with simple terrain attributes at multiple scales. *Soil Science Society of America Journal*, 67(1), 258–267. https://doi.org/10.2136/sssaj2003.2580
+- Müller, S., Schüler, L., Zech, A., & Heße, F. (2022). GSTools v1.3: a toolbox for geostatistical modelling in Python. *Geoscientific Model Development*, 15(7), 3161–3182. https://doi.org/10.5194/gmd-15-3161-2022
 - Pollice, A., & Jona Lasinio, G. (2009). Two approaches to imputation and adjustment of air quality data from a composite monitoring network. *Journal of Data Science*, 7(1), 43–59. https://doi.org/10.6339/JDS.2009.07(1).589
 - Potash, E., Guan, K., Margenot, A. J., et al. (2023). Multi-site evaluation of stratified and balanced sampling of soil organic carbon stocks in agricultural fields. *Geoderma*, 438, 116587. https://doi.org/10.1016/j.geoderma.2023.116587 (Tables 1 and 2, Sections 2.1 and 2.3, read 8 November 2026)
 - Probst, P., Wright, M. N., & Boulesteix, A.-L. (2019). Hyperparameters and tuning strategies for random forest. *WIREs Data Mining and Knowledge Discovery*, 9(3), e1301. https://doi.org/10.1002/widm.1301
@@ -1420,4 +1495,5 @@ time). Nothing in the record depends on how the work was split.
 - Szatmári, G., Laborczi, A., Takács, K., et al. (2026). HU-SoilCarbonGrids: an initiative for providing comprehensive information on soil organic carbon changes in Hungary. *European Journal of Soil Science*, 77(1). https://doi.org/10.1111/ejss.70292
 - Taghizadeh-Mehrjardi, R., Kerry, R., Ingram, B., et al. (2025). Mapping soil volumetric water content at multiple depths for variable rate irrigation using UAV and yield monitor data with random forests. *Soil Use and Management*, 41(4). https://doi.org/10.1111/sum.70156
 - Vaysse, K., & Lagacherie, P. (2017). Using quantile regression forest to estimate uncertainty of digital soil mapping products. *Geoderma*, 291, 55–64. https://doi.org/10.1016/j.geoderma.2016.12.017
+- Voltz, M., & Webster, R. (1990). A comparison of kriging, cubic splines and classification for predicting soil properties from sample information. *Journal of Soil Science*, 41(3), 473–490. https://doi.org/10.1111/j.1365-2389.1990.tb00080.x
 - Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
