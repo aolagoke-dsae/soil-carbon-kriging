@@ -16,7 +16,7 @@ Plan, not to this file.
 | 2 | Potash: stocks in 0–30 cm; covariance models by REML, with the pooling of small fields tested; moment variograms as the gstat baseline | **run** 07.11.2026: Checkpoint 2 passed, 9/9 rules |
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
-| 5 | Each field's mean stock: block kriging against the stratified, design-based estimate the paper evaluates | not yet specified |
+| 5 | Each field's mean stock by Bayesian block kriging, beside the design-based estimate the samples support; the samples needed for a given precision and the detectable change; gstat in R as an independent check; the six figures and the report | rules fixed 10.11.2026 |
 | 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
 
 Stages 5 and 6 are a direction, not instructions. Each gets its rules,
@@ -1608,3 +1608,90 @@ cells, computed in one piece, within 2.0 × 10⁻¹³ Mg C/ha.
 - Vaysse, K., & Lagacherie, P. (2017). Using quantile regression forest to estimate uncertainty of digital soil mapping products. *Geoderma*, 291, 55–64. https://doi.org/10.1016/j.geoderma.2016.12.017
 - Voltz, M., & Webster, R. (1990). A comparison of kriging, cubic splines and classification for predicting soil properties from sample information. *Journal of Soil Science*, 41(3), 473–490. https://doi.org/10.1111/j.1365-2389.1990.tb00080.x
 - Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
+
+---
+
+## Stage 5: each field's mean stock, and what it means for monitoring (Potash fields)
+
+> **Rules fixed on 10 November 2026** by the commit that adds them, before
+> any field mean, block kriging, sampling-effort curve or R run on the
+> stocks. Seen so far: Stage 4's record and maps, and gstat 2.1-1 on
+> simulated fields only, to find how its block kriging compares (G1).
+
+```bash
+python -m src.transform.field_means   # curated/potash_field_means.parquet, curated/potash_effort.parquet
+python -m src.checks.gstat            # rule G1: needs R with gstat; writes and reads tests/fixtures/gstat_IL-RT.json
+python -m src.checks.checkpoint5      # exit 0 passed, 1 a rule failed, 2 an input missing
+python -m src.report.figures          # Stage 4's two figures and Stage 5's four, into docs/figures/
+```
+
+Stage 5 asks what a carbon-farming scheme would ask of each field: its mean
+stock in 0–30 cm with an honest interval, and how many samples it takes to
+detect a change in that mean. The answers are model-based, under Stage 4's
+selected models, and are set beside the design-based estimate the samples
+themselves support. The review of 10 November 2026 framed the questions;
+the context is the EU's certification framework for carbon farming,
+Regulation (EU) 2024/3012, whose methodology for mineral soils was adopted
+in July 2026. This repository has not read that delegated act and claims
+nothing about compliance with it.
+
+| | Decision | Why |
+|---|---|---|
+| D1 the field | A field is the set of its 10 m cells in Stage 4's maps (D10): inside the hull of its sampled locations, every covariate defined. Its mean stock is the mean of the 0–30 cm stock over those cells | Potash et al. (2023) publish no field boundaries; the hull is the region the samples speak for, and every table and figure says that it stands in for the field |
+| D2 the field mean by Bayesian block kriging | Under each field's selected mean model (Stage 4, D5) and its posterior from all the field's stocks (as for the maps): at every grid point, the universal block-kriging predictor of the field mean and its variance per unit sill, the cross-covariances averaged over the cells and the block's own covariance over all pairs of cells, the nugget left out (it averages away over a field); the predictive of the field mean is the posterior mixture of Student-t with n − p degrees of freedom, as in Stage 4 (D3). Grid points lighter than 10⁻¹² of the heaviest are left out, as in the maps. The block's own covariance is averaged over the pairs' distances in bins of 5 cm (after the anisotropy's rotation and scaling), the covariance taken at each bin's mean distance. Reported: the mean, the 2.5, 50 and 97.5 % quantiles and the standard deviation; plug-in kriging at the posterior's mode beside it | Block kriging is how geostatistics estimates a mean over a region from its model (Webster & Oliver 2007), and Stage 4 showed that carrying the parameters' uncertainty is what keeps the intervals honest. The binning makes a mean over four million pairs cheap at every grid point; B1 checks it against all pairs |
+| D3 the design-based comparison | The stratified and balanced estimates Potash et al. evaluate cannot be computed: the data carry no strata, none of the paper's covariates (POLARIS, Landsat, SSURGO), and its designs were drawn on simulated maps, not on these samples (their §2.2–2.3). What the samples support is the sample mean with the simple-random-sampling standard error s / √n and a t interval. Beside it, the error of that sample mean as an estimate of the field mean under the posterior: its model-based standard error. The two estimates disagree beyond their uncertainty when either lies outside the other's 95 % interval | Design-based inference needs a probability sample; model-based inference needs a model (Brus & de Gruijter 1997). The five grid fields are systematic samples, for which the SRS formula is the usual approximation and overstates the variance when stocks are correlated in space; at IL-BR and IL-MC (gridded within subplots) and NE (a model-based design) the sample is not a probability sample of the field at all, and the estimate is reported with that caveat. Potash et al. found that grid sampling with a t interval quantified uncertainty poorly (§4.4.1); the model-based standard error measures by how much here |
+| D4 sampling effort | For n of 4, 6, 9, 12, 16, 25, 36, 50, 70, 100, 140, 200, 280 and 400: a square grid of spacing √(area / n) over the field, its first point half a spacing in from the hull's lower-left corner, the points inside the hull kept (their number recorded). The variance of the field mean by block kriging from such a grid, under the selected model's mean and covariance, averaged over the posterior from all the stocks: V(n) = Σ w E[σ² given θ] v(n, θ), with E[σ² given θ] = S² / (n − p − 2), over the grid points that carry 99.9 % of the posterior weight. Beside it simple random sampling: D² / n, with D² the variance of the stock at a random cell around the field mean under the same posterior, its trend included. Reported: the n at which the 95 % interval's half-width, 1.96 √V(n), falls to 5 % of the field's mean stock, interpolated on log n | The review asked how the precision of the field mean grows with the number of samples. Averaging over the posterior plans with the uncertainty of the parameters, not one guess at them. The simple-random-sampling curve is the design-based baseline that Potash et al. measure their designs against |
+| D5 the detectable change | For two independent campaigns of n samples each with the same design, the smallest change in the field mean detectable with 80 % power by a two-sided test at the 5 % level: MDC(n) = (1.960 + 0.842) √2 SE(n), with SE(n) = √V(n), and for the current design SE the Bayesian block predictive's standard deviation. Reported: each field's MDC with its current design, and the n at which the MDC falls to 10 % and to 5 % of its mean stock | The minimum detectable difference is the quantity a monitoring design is planned around (Garten & Wullschleger 1999; Smith 2004). Independent campaigns are the conservative case: revisiting the same locations correlates the campaigns' errors and lowers the MDC, by an amount these data cannot estimate |
+| D6 what Stage 4 carried forward | Under (b) the small fields use the shared posterior. At IL-RT and NE, where the selected model beat the runner-up by less than 1 % of CRPS, the field mean under the runner-up is reported beside. IL-BR's level (Stage 4, D9) stays unverifiable: the paper reports no field means, and its standard deviations are for deeper profiles | As Stage 4 left them |
+| D7 an independent check in R | At IL-RT (the selected model there is a Matérn with anisotropy, the hardest to match) and its posterior's mode from all the stocks: gstat (Pebesma 2004) krigs every cell and the field mean, the cells as the block's discretisation, with the parameters in gstat's terms (partial sill and nugget; the Matérn's range a over the scale at which R(a) = 0.05, κ = ν; `anis = c(angle, ratio)`, which is this repository's convention). Coordinates go in as metres from the training locations' centroid. The inputs and this repository's results are written to `tests/fixtures/gstat_IL-RT.json` (the stocks are CC BY 4.0, attributed in the file), so the check runs wherever R and gstat run: here and in a CI job | The review asked for one field reproduced in R with gstat, the bridge to the author's published R work |
+| D8 the figures | Four more by `src/report/figures.py`, each with its values as CSV: (3) **variograms** of IL-RS, the largest field whose models are isotropic: Stage 2's moment estimates and baseline fit, the REML model under (a), and the 90 % band of the semivariogram under Stage 4's posterior from all the stocks; (4) **CRPS by field**: the skill against the baseline, 1 − CRPS / CRPS_baseline, of the selected kriging, QRF and RF-RK; (5) **field means**: block kriging's mean and 95 % interval beside the design-based mean and its interval, per field; (6) **detectable change** against n, one line per field, block kriging from a grid, each field's current design marked | The review's figures 1, 4, 5 and 6; with Stage 4's two, the six it asked for. The field for the variograms is fixed by a rule, before it is drawn |
+| D9 the report | A Quarto website in `docs/report/`, rendered and published to GitHub Pages by a workflow from committed files only: the method, the results, the comparison with R, the limits. Nothing is computed in CI | The portfolio standard's publication layer (`docs/ARCHITECTURE.md`); the curated tables are not committed, so the report reads the figures and their CSVs |
+| D10 scope | No new data, no covariates beyond Stage 3, no change to Stage 4's models or selection. The planning numbers are under the fitted models and recommend no design to anyone | Each would need its own rules |
+
+### Checkpoint 5: rules
+
+| Rule | Passes when |
+|---|---|
+| B1 block algebra | For every field at its posterior's mode: the block-kriging predictor and variance equal those of the bordered kriging system solved directly, with the block's covariances averaged over all pairs of cells, unbinned, within 1e-9 relative for the predictor and 1e-6 relative for the variance; and the binned mean covariance of the block equals the unbinned one within 1e-6 relative at the grid's mode and at four more grid points per field |
+| B2 block predictive | For every field, the predictive distribution function at its 2.5, 50 and 97.5 % quantiles returns the levels within 1e-9 (by `stdtr`), and its mean is the posterior-weighted mean of the block predictors within 1e-9 relative |
+| B3 calibration by simulation | On 400 fields simulated at IL-MC's 52 locations and 1,930 cells (exponential, constant mean, sill 1, each field's range and ratio drawn from Stage 4's prior on IL-MC's grid, the nugget on the locations only), the Bayesian block predictive's 50, 90 and 95 % intervals hold the simulated field mean (the nugget-free field averaged over the cells) at rates within 0.07, 0.04 and 0.03 of nominal. Plug-in kriging's rates are reported |
+| G1 gstat | At IL-RT, at the mode: gstat's predictions at all 2,903 cells equal this repository's within 1e-8 relative and its variances within 1e-8 of the sill; its field mean within 1e-8 relative and its block variance within 1e-5 relative. On a simulated field gstat's point kriging agreed with an exact computation within 6 × 10⁻¹⁵, but its block kriging within 2.1 × 10⁻¹⁰ in the mean and 2.4 × 10⁻⁶ in the variance, whatever the coordinates' magnitude, hence the wider tolerance there |
+| E1 effort | For every field, at the grid of about 100 samples, V(n) recomputed with unbinned covariances and a direct solve agrees within 1e-6 relative, and D² recomputed over all pairs of cells within 1e-6 relative; every V(n) and D² positive and finite |
+| R1 record | `curated/potash_field_means.parquet` holds one row per field with the Bayesian and plug-in block means, quantiles and standard deviations, the design-based mean, its standard error and interval, the model-based standard error of the sample mean and the MDC of the current design; `curated/potash_effort.parquet` one row per field and n with the grid's n, √V(n), √(D²/n) and the MDC; every value finite and every interval ordered |
+
+**Reported, not judged:** per field, both means and intervals and whether
+they disagree; the SRS standard error against the model-based one; the
+current design's MDC; the n for a ±5 % interval and for an MDC of 10 % and
+5 % of the mean, by kriging from a grid and by simple random sampling; at
+IL-RT and NE, the field mean under the runner-up model; the six figures; the
+report.
+
+**Known limits, accepted:**
+
+- The field is the hull of the samples, not the farmer's field.
+- 0–30 cm at fixed depth. A change measured at fixed depth mixes a change
+  of carbon with a change of bulk density; monitoring would use an
+  equivalent soil mass (Wendt & Hauser 2013), which one survey cannot
+  show. The paper's profiles go to 60–120 cm (its Table 1), so its numbers
+  are not these.
+- The planning curves assume the fitted model holds for a later campaign,
+  and a regular grid; they do not count the cost of a sample.
+- The design-based estimate at the clustered fields and NE is not
+  design-unbiased; it is reported because it is what a naive reading of
+  the samples would give.
+- Laboratory error sits in the nugget, as before; the field mean excludes
+  it, the campaigns' MDC includes it only through the sample means.
+
+### Result
+
+Not yet run.
+
+### References for Stage 5
+
+- Brus, D. J., & de Gruijter, J. J. (1997). Random sampling or geostatistical modelling? Choosing between design-based and model-based sampling strategies for soil (with discussion). *Geoderma*, 80(1–2), 1–44. https://doi.org/10.1016/S0016-7061(97)00072-4
+- Garten, C. T., & Wullschleger, S. D. (1999). Soil carbon inventories under a bioenergy crop (switchgrass): measurement limitations. *Journal of Environmental Quality*, 28(4), 1359–1365. https://doi.org/10.2134/jeq1999.00472425002800040041x
+- Pebesma, E. J. (2004). Multivariable geostatistics in S: the gstat package. *Computers & Geosciences*, 30(7), 683–691. https://doi.org/10.1016/j.cageo.2004.03.012
+- Potash, E., Guan, K., Margenot, A. J., et al. (2023). Multi-site evaluation of stratified and balanced sampling of soil organic carbon stocks in agricultural fields. *Geoderma*, 438, 116587. https://doi.org/10.1016/j.geoderma.2023.116587 (Sections 2.1–2.3, 3, 4.1, 4.4 and Table 1, read 10 November 2026)
+- Smith, P. (2004). How long before a change in soil organic carbon can be detected? *Global Change Biology*, 10(11), 1878–1883. https://doi.org/10.1111/j.1365-2486.2004.00854.x
+- Webster, R., & Oliver, M. A. (2007). *Geostatistics for Environmental Scientists* (2nd ed.). Wiley. https://doi.org/10.1002/9780470517277
+- Wendt, J. W., & Hauser, S. (2013). An equivalent soil mass procedure for monitoring soil organic carbon in multiple soil layers. *European Journal of Soil Science*, 64(1), 58–65. https://doi.org/10.1111/ejss.12002
