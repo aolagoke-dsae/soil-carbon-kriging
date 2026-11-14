@@ -188,7 +188,7 @@ python -m src.transform.variograms   # curated/potash_variograms.parquet: the gs
 python -m src.checks.checkpoint2
 ```
 
-Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3),
+Stage 2 adds `pyproj` (UTM coordinates), `scikit-gstat` (rules V2 and V3; GSTools since 14.11.2026),
 `scikit-learn` (rule R1) and `pyarrow` (Parquet) to `requirements.txt`.
 
 ### Decisions, fixed before any variogram
@@ -560,6 +560,26 @@ empty text cells used `select_dtypes(include="object")`, which pandas 3
 still lets cover its new string columns but warns it will stop doing. It
 now compares every cell with an empty string, which works the same under
 pandas 2 and 3. The verdict did not change.
+
+### Amendment of 14 November 2026: GSTools in place of scikit-gstat
+
+> **Fixed on 14 November 2026** by the commit that adds it, before V2 and V3
+> were run with it on the stocks. GSTools had been run on them once, while
+> drafting, to see whether it bins pairs as this repository does; it does.
+
+The review of 10 November 2026 proposed it: scikit-gstat 1.0.27 caps SciPy
+below 1.17 and pulls in numba, while GSTools, which Stage 4's rule K6
+already uses, estimates empirical variograms too. V2 and V3 keep their
+tolerances and change only the independent side:
+
+| Rule | Passes when |
+|---|---|
+| V2 independent estimate | GSTools' `vario_estimate` (Matheron's estimator), given the same coordinates, values and bin edges, returns the same pair counts and the same semivariances (relative difference ≤ 1e-9) |
+| V3 baseline fits | Every baseline fit converged inside the D8 bounds, and GSTools' model of the same family (its length scale is the spherical's range and the exponential's a), fitted by `scipy.optimize.curve_fit` to the same bins with the same weights (σ = h/√N) and D8's bounds, from the same three starts, reaches a weighted sum of squares within 1 % of ours |
+
+The unit test of Cressie–Hawkins' estimator compares with GSTools' as well.
+scikit-gstat leaves `requirements.txt`. The result of 7 November, with
+scikit-gstat 1.0.24, stays recorded above; the result with GSTools follows.
 
 ### References for Stage 2
 
