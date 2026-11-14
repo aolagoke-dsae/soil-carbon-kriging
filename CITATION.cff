@@ -1,0 +1,82 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and cite the datasets it analyses as their publishers ask (see references)."
+type: software
+title: "Soil Carbon Kriging: soil organic carbon mapped with its uncertainty, in Python"
+abstract: >-
+  Bayesian kriging of field-scale soil organic carbon stocks (0-30 cm) at
+  1,163 locations in eight U.S. Midwest fields, with REML covariance models,
+  terrain covariates from USGS 3DEP, cross-validation against two random
+  forests, maps with their predictive uncertainty, and each field's mean
+  stock by Bayesian block kriging with the samples needed to detect a change.
+  Each stage's acceptance rules are fixed by a commit before its data is used.
+authors:
+  - family-names: Olagoke
+    given-names: Adewole
+repository-code: "https://github.com/aolagoke-dsae/soil-carbon-kriging"
+url: "https://aolagoke-dsae.github.io/soil-carbon-kriging/"
+license: MIT
+version: "1.0.0"
+date-released: "2026-11-14"
+keywords:
+  - soil organic carbon
+  - geostatistics
+  - kriging
+  - Bayesian kriging
+  - block kriging
+  - REML
+  - uncertainty quantification
+  - sampling design
+references:
+  - type: data
+    title: >-
+      Data for "Multi-site evaluation of stratified and balanced sampling of
+      soil organic carbon stocks in agricultural fields"
+    authors:
+      - family-names: Potash
+        given-names: Eric
+    year: 2023
+    publisher:
+      name: figshare
+    version: "2"
+    doi: 10.6084/m9.figshare.23669304.v2
+    license: CC-BY-4.0
+  - type: article
+    title: >-
+      Multi-site evaluation of stratified and balanced sampling of soil
+      organic carbon stocks in agricultural fields
+    authors:
+      - family-names: Potash
+        given-names: E.
+      - family-names: Guan
+        given-names: K.
+      - family-names: Margenot
+        given-names: A. J.
+      - name: "et al."
+    journal: Geoderma
+    volume: 438
+    start: 116587
+    year: 2023
+    doi: 10.1016/j.geoderma.2023.116587
+  - type: data
+    title: "Erste Bodenzustandserhebung Landwirtschaft - Kerndatensatz"
+    authors:
+      - family-names: Poeplau
+        given-names: Christopher
+      - family-names: Don
+        given-names: Axel
+      - family-names: Flessa
+        given-names: Heinz
+      - name: "et al."
+    year: 2020
+    publisher:
+      name: Open Agrar Repositorium
+    location:
+      name: Göttingen
+    doi: 10.3220/DATA20200203151139
+    license: CC-BY-4.0
+  - type: data
+    title: "USGS 3D Elevation Program (3DEP) 1/3 arc-second Digital Elevation Model"
+    authors:
+      - name: U.S. Geological Survey
+    url: "https://www.sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5"
+    notes: "Public domain (U.S. Government work); tile versions pinned in raw/manifest.csv."

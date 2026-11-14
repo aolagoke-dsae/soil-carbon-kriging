@@ -27,6 +27,25 @@ site locations are offset by up to 4 km for data protection.
 > by a commit before its data is touched; Stage 2's followed a review
 > against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
+## Kurzfassung
+
+Dieses Repository kartiert den organischen Kohlenstoffvorrat im Boden
+(0–30 cm) mitsamt seiner Unsicherheit, in Python. Grundlage sind 1.163
+georeferenzierte Proben aus acht landwirtschaftlich genutzten Feldern im
+Mittleren Westen der USA (Potash et al., 2023); die Kovarianzmodelle werden
+per REML geschätzt, Geländeparameter aus USGS-3DEP-Höhendaten dienen als
+Kovariaten. In dreimal wiederholter zehnfacher Kreuzvalidierung halten die
+90-%-Intervalle des bayesschen Krigings an jedem Feld 88 bis 91 % der
+zurückgehaltenen Vorräte, und im CRPS schneidet es an sieben von acht
+Feldern besser ab als ein Quantile Regression Forest. Der mittlere Vorrat je
+Feld, per bayesschem Block-Kriging geschätzt, liegt zwischen 21,8 und
+65,7 Mg C/ha; um eine Änderung von 10 % des Mittels zwischen zwei
+Beprobungen nachzuweisen, genügen auf einem Raster 13 bis 52 Proben statt 25
+bis 103 bei einfacher Zufallsstichprobe. Die Regeln jeder Stufe werden per
+Commit festgelegt, bevor ihre Daten verwendet werden; die Übertragung auf die
+Bodenzustandserhebung Landwirtschaft (BZE-LW) des Thünen-Instituts folgt als
+Stufe 6.
+
 ## Why
 
 The author's spatial statistics go back to point-pattern analyses of tree
@@ -122,3 +141,6 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 
 Code: MIT ([`LICENSE`](LICENSE)). Data: CC BY 4.0, from the sources above,
 attributed as their publishers ask in [`config/sources.csv`](config/sources.csv).
+
+To cite this repository: [`CITATION.cff`](CITATION.cff), shown by GitHub as
+*Cite this repository*; the release is v1.0 (Stages 1 to 5).
