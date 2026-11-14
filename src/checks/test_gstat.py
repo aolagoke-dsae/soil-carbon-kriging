@@ -1,6 +1,7 @@
 """Rule G1's Python side on its fixture; the R side where R and gstat are installed."""
 import json
 import shutil
+import subprocess
 
 import numpy as np
 import pytest
@@ -20,7 +21,19 @@ def test_the_fixture_and_this_repositorys_side(fixture):
     assert min(fixture["z"]) < o["block_pred"] < max(fixture["z"])
 
 
-@pytest.mark.skipif(shutil.which("Rscript") is None, reason="R is not installed")
+def _gstat_available():
+    """R alone is not enough: GitHub's Windows runners have R without gstat."""
+    if shutil.which("Rscript") is None:
+        return False
+    try:
+        r = subprocess.run(["Rscript", "-e", "library(gstat); library(sp); library(jsonlite)"],
+                           capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
+
+
+@pytest.mark.skipif(not _gstat_available(), reason="R with gstat, sp and jsonlite is not installed")
 def test_g1_against_gstat(fixture):
     ok, detail = G.check(fixture)
     assert ok, detail
