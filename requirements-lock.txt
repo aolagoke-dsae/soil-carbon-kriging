@@ -25,19 +25,9 @@ cligj==0.7.2 ; python_full_version < '3.12'
 cloudpickle==3.1.2
     # via joblib
 colorama==0.4.6 ; sys_platform == 'win32'
-    # via
-    #   pytest
-    #   tqdm
-contourpy==1.3.3 ; python_full_version < '3.12'
-    # via matplotlib
-contourpy==1.4.0 ; python_full_version >= '3.12'
-    # via matplotlib
-cycler==0.12.1
-    # via matplotlib
+    # via pytest
 emcee==3.1.6
     # via gstools
-fonttools==4.68.0
-    # via matplotlib
 gstools==1.7.0
     # via -r requirements.txt
 gstools-cython==1.2.0
@@ -51,23 +41,15 @@ imagecodecs==2026.3.6 ; python_full_version < '3.12'
 imagecodecs==2026.11.11 ; python_full_version >= '3.12'
     # via -r requirements.txt
 imageio==2.38.1
-    # via
-    #   scikit-gstat
-    #   scikit-image
+    # via scikit-image
 iniconfig==2.3.1
     # via pytest
 joblib==1.6.0
     # via scikit-learn
-kiwisolver==1.5.1
-    # via matplotlib
 lazy-loader==0.6
     # via scikit-image
-llvmlite==0.50.0
-    # via numba
 markdown-it-py==4.3.0
     # via rich
-matplotlib==3.11.2
-    # via scikit-gstat
 mdurl==0.1.2
     # via markdown-it-py
 meshio==5.3.5
@@ -82,25 +64,19 @@ networkx==3.6.1 ; python_full_version < '3.12'
     # via scikit-image
 networkx==3.7 ; python_full_version >= '3.12'
     # via scikit-image
-numba==0.68.1
-    # via scikit-gstat
 numpy==2.4.6 ; python_full_version < '3.12'
     # via
     #   -r requirements.txt
-    #   contourpy
     #   emcee
     #   gstools
     #   gstools-cython
     #   hankel
     #   imagecodecs
     #   imageio
-    #   matplotlib
     #   meshio
-    #   numba
     #   pandas
     #   pyevtk
     #   rasterio
-    #   scikit-gstat
     #   scikit-image
     #   scikit-learn
     #   scipy
@@ -108,20 +84,16 @@ numpy==2.4.6 ; python_full_version < '3.12'
 numpy==2.5.4 ; python_full_version >= '3.12'
     # via
     #   -r requirements.txt
-    #   contourpy
     #   emcee
     #   gstools
     #   gstools-cython
     #   hankel
     #   imagecodecs
     #   imageio
-    #   matplotlib
     #   meshio
-    #   numba
     #   pandas
     #   pyevtk
     #   rasterio
-    #   scikit-gstat
     #   scikit-image
     #   scikit-learn
     #   scipy
@@ -129,17 +101,13 @@ numpy==2.5.4 ; python_full_version >= '3.12'
 packaging==26.3
     # via
     #   lazy-loader
-    #   matplotlib
     #   pytest
     #   scikit-image
 pandas==3.1.1
-    # via
-    #   -r requirements.txt
-    #   scikit-gstat
+    # via -r requirements.txt
 pillow==13.0.0
     # via
     #   imageio
-    #   matplotlib
     #   scikit-image
 pluggy==1.7.0
     # via pytest
@@ -152,9 +120,7 @@ pygments==2.21.0
     #   pytest
     #   rich
 pyparsing==3.3.3
-    # via
-    #   matplotlib
-    #   rasterio
+    # via rasterio
 pyproj==3.7.2 ; python_full_version < '3.12'
     # via -r requirements.txt
 pyproj==3.8.0 ; python_full_version >= '3.12'
@@ -162,9 +128,7 @@ pyproj==3.8.0 ; python_full_version >= '3.12'
 pytest==9.2.0
     # via -r requirements.txt
 python-dateutil==4.0.0
-    # via
-    #   matplotlib
-    #   pandas
+    # via pandas
 rasterio==1.4.4 ; python_full_version < '3.12'
     # via -r requirements.txt
 rasterio==1.5.2 ; python_full_version >= '3.12'
@@ -173,24 +137,24 @@ requests==2.34.2
     # via -r requirements.txt
 rich==15.0.0
     # via meshio
-scikit-gstat==1.0.27
-    # via -r requirements.txt
 scikit-image==0.26.0
     # via -r requirements.txt
 scikit-learn==1.9.1
-    # via
-    #   -r requirements.txt
-    #   scikit-gstat
-scipy==1.16.3
+    # via -r requirements.txt
+scipy==1.17.1 ; python_full_version < '3.12'
     # via
     #   -r requirements.txt
     #   gstools
     #   hankel
-    #   scikit-gstat
     #   scikit-image
     #   scikit-learn
-setuptools==84.2.1
-    # via scikit-gstat
+scipy==1.18.1 ; python_full_version >= '3.12'
+    # via
+    #   -r requirements.txt
+    #   gstools
+    #   hankel
+    #   scikit-image
+    #   scikit-learn
 threadpoolctl==3.8.0
     # via scikit-learn
 tifffile==2026.3.3 ; python_full_version < '3.12'
@@ -201,8 +165,6 @@ tifffile==2026.11.12 ; python_full_version >= '3.12'
     # via
     #   -r requirements.txt
     #   scikit-image
-tqdm==4.70.1
-    # via scikit-gstat
 tzdata==2026.6
     # via
     #   pandas

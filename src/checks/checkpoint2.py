@@ -3,7 +3,7 @@
 The rules were fixed in RUNBOOK.md on 05.11.2026, before any variogram was
 computed, and each rule built so far is one function here: S1 and S2 for the
 stock table, R1 and R2 for the REML code, R3 and R4 for the fits and their
-record, V1-V3 for the moment baseline. scikit-learn and scikit-gstat give
+record, V1-V3 for the moment baseline. scikit-learn and GSTools give
 the independent estimates R1, V2 and V3 compare with.
 
     python -m src.checks.checkpoint2    exit 0: every rule built and passed
@@ -516,44 +516,42 @@ def v1_bins(vario: pd.DataFrame, stocks: pd.DataFrame) -> Rule:
 
 
 def v2_independent(vario: pd.DataFrame, stocks: pd.DataFrame) -> Rule:
-    """scikit-gstat's semivariances for the same coordinates, values and
-    edges, within 1e-9 relative, and the same pair counts."""
-    import warnings
-    import skgstat as skg
+    """GSTools' semivariances for the same coordinates, values and edges,
+    within 1e-9 relative, and the same pair counts (amended 14.11.2026:
+    GSTools in place of scikit-gstat)."""
+    import gstools as gs
     problems, worst, bins = [], 0.0, 0
     for site, g in stocks.groupby("site"):
         xy, z = g[["x", "y"]].to_numpy(float), g["stock"].to_numpy(float)
         for m in M.MEANS:
             b = _omni(vario, site, m)
-            upper = b["hi"].to_numpy(float)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                sk = skg.Variogram(xy, _values_direct(xy, z, m), estimator="matheron",
-                                   bin_func=list(upper), maxlag=float(upper[-1]), use_nugget=True,
-                                   fit_method=None)
-            counts = np.asarray(sk.bin_count, dtype=int)
+            edges = np.r_[b["lo"].iloc[0], b["hi"].to_numpy(float)]
+            _, gamma, counts = gs.vario_estimate((xy[:, 0], xy[:, 1]), _values_direct(xy, z, m), edges,
+                                                 estimator="matheron", return_counts=True)
             ours = b["pairs"].to_numpy(int)
-            if len(counts) != len(ours) or (counts != ours).any():
-                problems.append(f"{site} {m}: pair counts differ from scikit-gstat's")
+            if len(counts) != len(ours) or (np.asarray(counts) != ours).any():
+                problems.append(f"{site} {m}: pair counts differ from GSTools'")
                 continue
             ok = ours > 0
             mine = b["gamma"].to_numpy(float)[ok]
-            worst = max(worst, float(np.max(np.abs(np.asarray(sk.experimental, float)[ok] - mine) / np.abs(mine))))
+            worst = max(worst, float(np.max(np.abs(np.asarray(gamma, float)[ok] - mine) / np.abs(mine))))
             bins += int(ok.sum())
     passed = not problems and worst <= TOL_V2
     return Rule("V2 independent estimate", passed, "; ".join(problems) or
-                f"scikit-gstat {skg.__version__}, given the same coordinates, values and edges: the same "
+                f"GSTools {gs.__version__}, given the same coordinates, values and edges: the same "
                 f"pair counts, and semivariances within {worst:.1e} relative over {bins} bins "
                 f"(rule: {TOL_V2:g})")
 
 
 def v3_fits(fits: pd.DataFrame, vario: pd.DataFrame) -> Rule:
-    """Every baseline fit converged inside D8's bounds, and scikit-gstat's
-    model, fitted to the same bins with sigma = h / sqrt(N), reaches a
-    weighted sum of squares within 1 % of ours."""
+    """Every baseline fit converged inside D8's bounds, and GSTools' model of
+    the same family, fitted to the same bins with sigma = h / sqrt(N),
+    reaches a weighted sum of squares within 1 % of ours (amended
+    14.11.2026: GSTools' models in place of scikit-gstat's)."""
     import warnings
+    import gstools as gs
     from scipy.optimize import curve_fit
-    from skgstat import models
+    family = {"spherical": gs.Spherical, "exponential": gs.Exponential}
     problems, worst = [], 0.0
     fitted = vario[(vario["direction"] == "omni") & vario["fitted"].astype(bool)]
     for _, f in fits.iterrows():
@@ -564,9 +562,11 @@ def v3_fits(fits: pd.DataFrame, vario: pd.DataFrame) -> Rule:
         if not (bool(f["converged"]) and f["nugget"] >= 0 and f["partial_sill"] >= floor * (1 - 1e-9)
                 and 0 < f["a"] <= a_max * (1 + 1e-9)):
             problems.append(f"{f['site']} {f['mean']} {f['family']}: not converged inside D8's bounds")
-        scale = 1.0 if f["family"] == "spherical" else 3.0      # scikit-gstat's r: the range, or 3a
-        r_lo, r_hi = scale * VG.A_MIN_FACTOR * float(h.max()), scale * a_max
-        model = getattr(models, f["family"])
+        cls = family[f["family"]]
+
+        def model(h, length, psill, nugget):        # GSTools' len_scale: the range, or a
+            return cls(dim=2, var=psill, len_scale=length, nugget=nugget).variogram(h)
+        r_lo, r_hi = VG.A_MIN_FACTOR * float(h.max()), a_max
         sigma = h / np.sqrt(n)
         best = np.inf
         for r0, c0, b0 in ((h.mean(), gam.mean(), 0.0), (h.max(), np.ptp(gam), gam.min()),
@@ -584,10 +584,10 @@ def v3_fits(fits: pd.DataFrame, vario: pd.DataFrame) -> Rule:
         rel = abs(best - float(f["wss"])) / float(f["wss"])
         worst = max(worst, rel)
         if rel > TOL_V3:
-            problems.append(f"{f['site']} {f['mean']} {f['family']}: scikit-gstat {best:.4g} against ours "
+            problems.append(f"{f['site']} {f['mean']} {f['family']}: GSTools {best:.4g} against ours "
                             f"{f['wss']:.4g}")
     return Rule("V3 baseline fits", not problems, "; ".join(problems) or
-                f"all {len(fits)} baseline fits converged inside D8's bounds; scikit-gstat's models, fitted "
+                f"all {len(fits)} baseline fits converged inside D8's bounds; GSTools' models, fitted "
                 f"to the same bins with sigma = h/sqrt(N), reach weighted sums of squares within "
                 f"{worst:.2%} of ours (rule: {TOL_V3:.0%})")
 

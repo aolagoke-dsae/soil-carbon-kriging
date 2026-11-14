@@ -87,7 +87,7 @@ mass, and revisiting the same locations would need fewer.
 
 | R gstat | This repository |
 |---|---|
-| `variogram()`, `fit.variogram()` | `src/transform/variograms.py`, the moment baseline, checked against scikit-gstat |
+| `variogram()`, `fit.variogram()` | `src/transform/variograms.py`, the moment baseline, checked against GSTools |
 | likelihood fits (not in gstat) | `src/transform/reml.py`, REML, checked against scikit-learn |
 | `krige()` at points | `kriging.evaluate`, Bayesian over the parameters; plug-in at the mode |
 | `krige(..., block = )` | `field_means.block_grid`, Bayesian block kriging |

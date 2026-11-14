@@ -33,9 +33,10 @@ def test_matheron_and_cressie_hawkins_by_brute_force():
     sel = (d >= e[k]) & (d < e[k + 1])
     assert rows[k]["pairs"] == int(sel.sum())
     assert rows[k]["gamma"] == pytest.approx(np.mean(diff[sel] ** 2) / 2, rel=1e-12)
-    skg = pytest.importorskip("skgstat")
-    # scikit-gstat's estimators take the absolute differences
-    assert rows[k]["gamma_ch"] == pytest.approx(skg.estimators.cressie(np.abs(diff[sel])), rel=1e-12)
+    gs = pytest.importorskip("gstools")
+    _, ch = gs.vario_estimate((xy[:, 0], xy[:, 1]), z,
+                              np.array([e[k], e[k + 1]]), estimator="cressie")
+    assert rows[k]["gamma_ch"] == pytest.approx(float(ch[0]), rel=1e-12)
 
 
 def test_the_four_sectors_partition_the_pairs():

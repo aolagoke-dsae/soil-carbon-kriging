@@ -72,7 +72,7 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   models, with 95 % profile-likelihood intervals, the pooling test for the
   small fields, a Box-Cox profile per field and a geometric-anisotropy check
   for the large fields; the gstat-style moment baseline beside them, its
-  semivariances and fits checked against scikit-gstat's (Checkpoint 2, 9/9
+  semivariances and fits checked against GSTools' (Checkpoint 2, 9/9
   rules); a third client, which reads only the parts of five USGS tiles
   under the fields by HTTP range requests, and from them slope and mean
   curvature at three scales, TPI at three and TWI at all 1,163 locations,

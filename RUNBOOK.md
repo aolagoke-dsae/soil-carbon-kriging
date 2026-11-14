@@ -581,6 +581,17 @@ The unit test of Cressie–Hawkins' estimator compares with GSTools' as well.
 scikit-gstat leaves `requirements.txt`. The result of 7 November, with
 scikit-gstat 1.0.24, stays recorded above; the result with GSTools follows.
 
+**Result, 14 November 2026: Checkpoint 2 passed, 9/9 rules**, S1 to V1 as on
+7 November, word for word:
+
+```text
+PASS  V2 independent estimate: GSTools 1.7.0, given the same coordinates, values and edges: the same pair counts, and semivariances within 1.7e-14 relative over 176 bins (rule: 1e-09)
+PASS  V3 baseline fits: all 32 baseline fits converged inside D8's bounds; GSTools' models, fitted to the same bins with sigma = h/sqrt(N), reach weighted sums of squares within 0.00% of ours (rule: 1%)
+```
+
+The lock file was regenerated without scikit-gstat (`uv pip compile --universal
+--upgrade`); all 232 tests pass from it on Python 3.14 as well as 3.11.
+
 ### References for Stage 2
 
 - Alves, M. de C., da Silva, F. M., Moraes, J. C., et al. (2009). Geostatistical analysis of the spatial variation of the berry borer and leaf miner in a coffee agroecosystem. *Precision Agriculture*, 12(1), 18–31. https://doi.org/10.1007/s11119-009-9151-z
