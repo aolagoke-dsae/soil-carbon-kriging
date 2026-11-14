@@ -11,7 +11,8 @@ site locations are offset by up to 4 km for data protection.
 
 *IL-RT, one of the eight fields: the stock in 0–30 cm predicted at each 10 m cell by Bayesian kriging of 245 samples (dots), beside its uncertainty, lowest at the samples. In cross-validation the field's kriging has a modelling efficiency of 0.57, and its 90 % intervals hold 89.5 % of the held-out stocks.*
 
-> **Status: Stage 4 run (08.11.2026, completed 10.11.2026): Checkpoint 4 passed, 13 of 13.**
+> **Status: Stage 5 run (14.11.2026): each field's mean stock, with what it means for monitoring.**
+> The report: https://aolagoke-dsae.github.io/soil-carbon-kriging/
 > Both datasets are pulled and pass Checkpoint 1, 9 rules of 9; Stage 2
 > passes Checkpoint 2, 9 of 9: the stocks, the REML covariance models with
 > their intervals and the pooling test, and the gstat-style baseline beside
@@ -19,8 +20,10 @@ site locations are offset by up to 4 km for data protection.
 > every location, from the newest USGS 3DEP tiles; and Stage 4 passes
 > Checkpoint 4, 13 of 13: Bayesian kriging cross-validated at all 1,163
 > locations under three mean models, against two forests, its kriging
-> checked against GSTools, and maps of all eight fields
-> ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 to 4). Each stage's rules are fixed
+> checked against GSTools, and maps of all eight fields; Stage 5 passes
+> Checkpoint 5, 5 of 5: each field's mean by Bayesian block kriging, the
+> samples needed and the detectable change, with R's gstat as a check
+> ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 to 5). Each stage's rules are fixed
 > by a commit before its data is touched; Stage 2's followed a review
 > against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
@@ -35,6 +38,15 @@ soil-carbon data, with the variogram fitted by REML as current practice
 recommends, and reports what soil-carbon work needs from it: not a smooth map,
 but the uncertainty of each prediction and of each field's mean. A
 machine-learning benchmark tests whether a forest does better.
+
+## Quick start
+
+```bash
+pip install -r requirements-lock.txt       # the pinned versions CI tests; requirements.txt for the newest
+python -m pytest -q
+```
+
+The pulls and every stage's commands are in [`RUNBOOK.md`](RUNBOOK.md).
 
 ## Data
 
@@ -78,8 +90,11 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   library, which reproduces its kriging within 10⁻¹⁴; maps of the
   predictive mean and standard deviation at every 10 m cell of the eight
   fields, checked against the cross-validation's own predictive
-  (Checkpoint 4, 13/13 rules); 223 unit tests, none of which makes a
-  request; a CI workflow for Python 3.11 and 3.14.
+  (Checkpoint 4, 13/13 rules); each field's mean stock by Bayesian block
+  kriging, checked against a direct solve, a calibration simulation and R's
+  gstat (Checkpoint 5, 5/5 rules); 232 unit tests, none of which makes a
+  request; a CI workflow for Python 3.11 and 3.14 on Linux, 3.14 on Windows from
+  the lock file, and the gstat check in R.
 - **What Stage 4 found:** the selected kriging's 90 % intervals hold 88 to
   91 % of the held-out stocks at every field; carrying the parameters'
   uncertainty widens the predictive variance by 2 to 12 % against plug-in
@@ -92,9 +107,16 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   *Addendum: result*).
 
   ![Calibration: the share of held-out stocks below each predictive quantile, for Bayesian kriging, plug-in kriging and the quantile regression forest, the eight fields pooled and each field's departure from the 1:1 line](docs/figures/calibration.png)
-- **Not yet:** each field's mean stock by block kriging against the
-  stratified, design-based estimate the paper evaluates (Stage 5), and the
-  national-scale model for BZE-LW (Stage 6). Neither has its rules yet.
+- **What Stage 5 found:** each field's mean stock in 0–30 cm, from 21.8 Mg
+  C/ha at IL-BR to 65.7 at IL-RD, agrees with its sample mean at every
+  field, with an interval up to 46 % narrower; to detect a change of 10 % of
+  the mean between two campaigns, 13 to 52 samples on a grid suffice under
+  the fitted models, against 25 to 103 by simple random sampling
+  ([`RUNBOOK.md`](RUNBOOK.md), Stage 5).
+
+  ![The smallest detectable change in each field's mean stock against the number of samples per campaign](docs/figures/detectable_change.png)
+- **Not yet:** the national-scale model for BZE-LW (Stage 6), which has no
+  rules yet.
 
 ## Licence
 

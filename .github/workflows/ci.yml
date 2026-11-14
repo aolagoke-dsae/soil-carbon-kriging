@@ -35,3 +35,34 @@ jobs:
       - run: pip install -r requirements.txt
       - name: pytest
         run: python -m pytest -q
+
+  windows:
+    name: unit tests, Windows, from the lock file
+    # Where the results are produced: Windows and Python 3.14, the versions
+    # requirements-lock.txt pins (uv pip compile --universal).
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -r requirements-lock.txt
+      - name: pytest
+        run: python -m pytest -q
+
+  gstat:
+    name: rule G1, gstat in R
+    # RUNBOOK, Stage 5, D7: gstat krigs IL-RT's cells and field mean from
+    # tests/fixtures/gstat_IL-RT.json, and this repository's code the same.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends r-base-core r-cran-gstat r-cran-sp r-cran-jsonlite
+      - run: pip install -r requirements-lock.txt
+      - name: G1
+        run: python -m src.checks.gstat

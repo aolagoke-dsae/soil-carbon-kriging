@@ -1,0 +1,16 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+
+website:
+  title: "Soil Carbon Kriging"
+  repo-url: https://github.com/aolagoke-dsae/soil-carbon-kriging
+  repo-actions: [source]
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    fig-align: left

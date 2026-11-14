@@ -30,11 +30,12 @@ from matplotlib.lines import Line2D
 from scipy.spatial import ConvexHull
 
 try:                        # run as a module from the repository root
-    from src.transform import forests as F, kriging as K, maps as MP, scores as SC
+    from src.transform import forests as F, kriging as K, maps as MP, reml as M, scores as SC
 except ImportError:         # imported with src/* on sys.path
     import forests as F
     import kriging as K
     import maps as MP
+    import reml as M
     import scores as SC
 
 FIGURES = K.ROOT / "docs" / "figures"
@@ -189,6 +190,159 @@ def draw_calibration(table: pd.DataFrame, selected: pd.Series, out) -> None:
     plt.close(fig)
 
 
+PALETTE8 = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+
+
+def _title(fig, title: str, subtitle: str, width: int = 120) -> None:
+    fig.text(0.008, 0.985, title, ha="left", va="top", fontsize=11, color=INK)
+    fig.text(0.008, 0.92, textwrap.fill(subtitle, width), ha="left", va="top", fontsize=8, color=SECONDARY,
+             linespacing=1.4)
+
+
+def variogram_table(site: str, fields: dict, record: pd.DataFrame, aniso, boxcox) -> tuple[pd.DataFrame, dict]:
+    """The moment estimates, the baseline fit, the REML model and the 90 % band
+    of the semivariogram under Stage 4's posterior from all the stocks, (a)."""
+    vg = pd.read_parquet(K.CURATED / "potash_variograms.parquet")
+    vg = vg[(vg["site"] == site) & (vg["mean"] == "constant") & (vg["direction"] == "omni") & (vg["pairs"] > 0)]
+    fits = pd.read_parquet(K.CURATED / "potash_variogram_fits.parquet")
+    base = fits[(fits["site"] == site) & (fits["mean"] == "constant") & fits["chosen"].astype(bool)].iloc[0]
+    reml = record[(record["site"] == site) & (record["mean"] == "constant") & record["for_stage4"].astype(bool)].iloc[0]
+    model = next(m for m in K.models_for(site, record, aniso, boxcox) if m.name == "a")
+    fd = fields[site]
+    post = K.evaluate(model.grid(), fd.xy, fd.z, M.design(fd.xy, "constant", fd.xy.mean(axis=0)))
+    w = post.weights()
+    a, t, nu = model.grid().arrays()
+    h = np.linspace(0.0, float(vg["hi"].max()), 121)[1:]
+    e_sigma = post.s2 / (post.df - 2.0)
+    gam = np.array([e_sigma[i] * (1 - (1 - t[i]) * M.correlation(model.family, h, a[i], None if np.isnan(nu[i]) else nu[i]))
+                    for i in range(len(w))])
+    lo = [K.weighted_quantiles(gam[:, j], w, [0.05])[0] for j in range(len(h))]
+    hi = [K.weighted_quantiles(gam[:, j], w, [0.95])[0] for j in range(len(h))]
+    rnu = None if pd.isna(reml["nu"]) else float(reml["nu"])
+    curves = pd.DataFrame({"h": h, "posterior_q05": lo, "posterior_q95": hi,
+                           "reml": reml["nugget"] + reml["partial_sill"] * (1 - M.correlation(reml["family"], h, reml["eff_range"], rnu)),
+                           "baseline": base["nugget"] + base["partial_sill"] * (1 - M.correlation(base["family"], h, base["eff_range"], None))})
+    meta = {"reml_family": reml["family"], "base_family": base["family"], "n": len(fd.z)}
+    return curves, vg[["lag", "gamma", "pairs", "fitted"]].reset_index(drop=True), meta
+
+
+def draw_variograms(site: str, curves: pd.DataFrame, points: pd.DataFrame, meta: dict, out) -> None:
+    fig, ax = plt.subplots(figsize=(7.6, 4.6))
+    fig.subplots_adjust(top=0.78, left=0.1, right=0.97, bottom=0.12)
+    ax.fill_between(curves["h"], curves["posterior_q05"], curves["posterior_q95"], color=BLUE, alpha=0.12, lw=0,
+                    label="Bayesian posterior, 90 % band (Stage 4)")
+    ax.plot(curves["h"], curves["reml"], color=BLUE, lw=1.8, label=f"REML, {meta['reml_family']} (Stage 2)")
+    ax.plot(curves["h"], curves["baseline"], color=ORANGE, lw=1.4, label=f"moment fit, {meta['base_family']} (gstat-style baseline)")
+    used = points[points["fitted"].astype(bool)]
+    ax.scatter(used["lag"], used["gamma"], s=8 + 40 * used["pairs"] / used["pairs"].max(), color=INK,
+               edgecolors=SURFACE, linewidths=0.6, zorder=3, label="moment estimates (size: pairs)")
+    ax.set_xlim(0, curves["h"].max())
+    ax.set_ylim(0, None)
+    ax.grid(color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlabel("distance (m)")
+    ax.set_ylabel("semivariance ((Mg C/ha)²)")
+    ax.legend(loc="lower right", frameon=False, fontsize=7.5, labelcolor=INK)
+    _title(fig, f"{site}: the semivariogram of the 0–30 cm stocks, three ways",
+           f"{meta['n']} stocks, constant mean. The moment estimates and their fit are the baseline the author ran in R "
+           f"with gstat; REML is the model Stage 4 krigs with; the band is what its posterior allows.", 110)
+    fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+
+
+def crps_table(cv: pd.DataFrame, selected: pd.Series) -> pd.DataFrame:
+    rows = []
+    for site, model in selected.items():
+        def crps(method):
+            g = cv[(cv["site"] == site) & (cv["method"] == method)]
+            return float(g.groupby("repeat")["crps"].mean().mean())
+        base = crps("baseline")
+        for kind, method in (("kriging", f"kriging_{model}"), ("qrf", "qrf"), ("rfrk", "rfrk")):
+            c = crps(method)
+            rows.append({"site": site, "series": kind, "crps": c, "crps_baseline": base, "skill": 1 - c / base})
+    return pd.DataFrame(rows)
+
+
+def draw_crps(table: pd.DataFrame, selected: pd.Series, out) -> None:
+    names = {"kriging": ("Bayesian kriging, selected model", BLUE), "qrf": ("quantile regression forest", AQUA),
+             "rfrk": ("random forest, kriged residuals", ORANGE)}
+    sites = list(selected.index)[::-1]
+    fig, ax = plt.subplots(figsize=(7.6, 4.8))
+    fig.subplots_adjust(top=0.74, left=0.14, right=0.97, bottom=0.12)
+    ax.axvline(0, color=BASELINE, lw=1.0)
+    for k, (kind, (label, colour)) in enumerate(names.items()):
+        t = table[table["series"] == kind].set_index("site").loc[sites]
+        ax.scatter(t["skill"], np.arange(len(sites)) + (k - 1) * 0.22, s=36, color=colour, edgecolors=SURFACE,
+                   linewidths=0.8, zorder=3, label=label)
+    ax.set_yticks(np.arange(len(sites)))
+    ax.set_yticklabels([f"{s} ({selected[s]})" for s in sites])
+    ax.grid(axis="x", color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlabel("CRPS skill against the field's own distribution of stocks (1 − CRPS / CRPS of the baseline)")
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=3, frameon=False, fontsize=7.5, labelcolor=INK)
+    _title(fig, "How much location and terrain add: CRPS skill by field",
+           "Three repeats of ten-fold cross-validation. 0 is the baseline, the training fold's own stocks of the field; "
+           "higher is better. The forests learn across all eight fields; kriging field by field.", 110)
+    fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+
+
+def draw_field_means(means: pd.DataFrame, out) -> None:
+    m = means.sort_values("site", ascending=False).reset_index(drop=True)
+    y = np.arange(len(m))
+    fig, ax = plt.subplots(figsize=(7.6, 4.8))
+    fig.subplots_adjust(top=0.7, left=0.14, right=0.97, bottom=0.12)
+    ax.hlines(y + 0.15, m["q025"], m["q975"], color=BLUE, lw=2.2)
+    ax.scatter(m["mean"], y + 0.15, s=30, color=BLUE, edgecolors=SURFACE, linewidths=0.8, zorder=3,
+               label="Bayesian block kriging: mean, 95 % interval")
+    ax.hlines(y - 0.15, m["sample_lo"], m["sample_hi"], color=ORANGE, lw=2.2)
+    ax.scatter(m["sample_mean"], y - 0.15, s=30, color=ORANGE, edgecolors=SURFACE, linewidths=0.8, zorder=3,
+               label="sample mean, 95 % t interval (simple random sampling's formula)")
+    ax.set_yticks(y)
+    ax.set_yticklabels([f"{s} ({k})" for s, k in zip(m["site"], m["model"])])
+    ax.grid(axis="x", color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlabel("mean stock in 0–30 cm over the field's cells (Mg C/ha)")
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=1, frameon=False, fontsize=7.5, labelcolor=INK)
+    _title(fig, "Each field's mean stock, model-based and design-based",
+           "The field is the hull of its samples (Potash et al. publish no boundaries). At IL-BR, IL-MC and NE the "
+           "samples are not a probability sample of the field, so the design-based interval is a naive one.", 110)
+    fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+
+
+def draw_detectable_change(effort: pd.DataFrame, means: pd.DataFrame, out) -> None:
+    fig, ax = plt.subplots(figsize=(7.8, 5.0))
+    fig.subplots_adjust(top=0.8, left=0.1, right=0.8, bottom=0.12)
+    mm = means.set_index("site")
+    for colour, (site, g) in zip(PALETTE8, effort.groupby("site")):
+        g = g[g["n"] >= 9].sort_values("n_target").drop_duplicates("n")      # one grid per number of points
+        pct = 100 * g["mdc_grid"] / mm.loc[site, "mean"]
+        ax.plot(g["n"], pct, color=colour, lw=1.6, label=f"{site} ({mm.loc[site, 'model']})")
+        ax.scatter([mm.loc[site, "n"]], [100 * mm.loc[site, "mdc"] / mm.loc[site, "mean"]], s=34, color=colour,
+                   edgecolors=SURFACE, linewidths=0.8, zorder=3)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False, fontsize=7.5, labelcolor=INK)
+    ax.axhline(10, color=BASELINE, lw=1.0)
+    ax.axhline(5, color=BASELINE, lw=1.0)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xticks([10, 25, 50, 100, 200, 400])
+    ax.set_xticklabels(["10", "25", "50", "100", "200", "400"])
+    ax.set_ylim(1, 40)
+    ax.set_yticks([2, 5, 10, 20, 50])
+    ax.set_yticklabels(["2 %", "5 %", "10 %", "20 %", "50 %"])
+    ax.grid(color=GRID, lw=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlabel("samples per campaign, on a square grid")
+    ax.set_ylabel("smallest detectable change in the field mean")
+    _title(fig, "How many samples to detect a change in a field's mean stock",
+           "Two independent campaigns of n samples, block kriging, 80 % power at the 5 % level; the change as a share "
+           "of the field's mean stock in 0–30 cm. Dots: each field's current design. Under the fitted models, averaged "
+           "over their posterior.", 110)
+    fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+
+
 def main(argv: list[str]) -> int:
     """python -m src.report.figures"""
     if argv:
@@ -209,6 +363,22 @@ def main(argv: list[str]) -> int:
     table = calibration_table(cv, selected)
     table.round(4).to_csv(FIGURES / "calibration.csv", index=False)
     draw_calibration(table, selected, FIGURES / "calibration.png")
+    curves, points, meta = variogram_table("IL-RS", fields, record, aniso, boxcox)
+    curves.round(4).to_csv(FIGURES / "variograms_IL-RS.csv", index=False)
+    draw_variograms("IL-RS", curves, points, meta, FIGURES / "variograms_IL-RS.png")
+    crps = crps_table(cv, selected)
+    crps.round(4).to_csv(FIGURES / "crps_by_field.csv", index=False)
+    draw_crps(crps, selected, FIGURES / "crps_by_field.png")
+    try:
+        from src.transform import field_means as FM
+    except ImportError:
+        import field_means as FM
+    if FM.OUT.exists():
+        means, effort = pd.read_parquet(FM.OUT), pd.read_parquet(FM.OUT_EFFORT)
+        means.round(4).to_csv(FIGURES / "field_means.csv", index=False)
+        effort.round(4).to_csv(FIGURES / "detectable_change.csv", index=False)
+        draw_field_means(means, FIGURES / "field_means.png")
+        draw_detectable_change(effort, means, FIGURES / "detectable_change.png")
     print(f"the map's field: {site}, MEC {mec[site]:.2f} (next: {mec.drop(site).idxmax()}, "
           f"{mec.drop(site).max():.2f}); figures in {FIGURES.relative_to(K.ROOT).as_posix()}/")
     return 0

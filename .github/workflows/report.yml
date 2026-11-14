@@ -1,0 +1,41 @@
+name: report
+
+# The Quarto report (RUNBOOK, Stage 5, D9), rendered from committed files only
+# and published to GitHub Pages. Nothing is computed here: the figures and
+# their tables are made by src/report/figures.py and committed.
+# Needs Settings > Pages > Source: GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/report.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - run: quarto render docs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+  deploy:
+    needs: render
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

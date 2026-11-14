@@ -24,3 +24,7 @@ __pycache__/
 
 # curated/: rebuilt from raw/ by src/transform; the RUNBOOK records what they produced
 curated/
+
+# the Quarto report, rendered by .github/workflows/report.yml
+docs/_site/
+docs/.quarto/
