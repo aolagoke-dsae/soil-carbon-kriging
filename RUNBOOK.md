@@ -39,7 +39,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M5: IL-BR against SSURGO (U1–U5): consistent with the soil survey, which itself expects IL-BR to hold a third of the other Illinois fields' carbon | Stage 1, *Addendum* on the soil survey; `src/ingest/sda_client.py`, `src/checks/ssurgo.py` |
 | 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
-| open | M2 (rules fixed 15.11.2026), M3, M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
+| open | M3, M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2037,6 +2038,35 @@ most on the long ranges the bound cuts off, and nothing tested how much.*
 | W2 reproduction | With the factor 1, the computation returns Stage 5's mean and 95 % interval at each of the three fields within 10⁻⁹ Mg C/ha | The rerun is the same code, so it must reproduce what it extends |
 | W3 reported | Per field and factor: the mean, its 95 % interval and standard deviation, the width of the interval, and the posterior weight on ranges above the original bound | Shows how far the result moves and how much of the posterior the bound had cut off |
 | W4 the verdict | A field mean is **robust to the bound** if, at both factors, its mean moves by less than half the standard deviation it had under the original bound and the width of its 95 % interval changes by less than 20 %. A field that is not robust is reported in the README and the report with its means and intervals under all three bounds, and the comparison of interval widths with the sample mean's ("up to 46 % narrower") says so | Half a standard deviation and a fifth of the width are moves a reader of the interval would notice; smaller ones would not change what the interval says |
+
+    python -m src.transform.range_bound --budget 150     (repeat until it finishes)
+
+**Result, 15 November 2026.** Two runs of under three minutes; the original
+bound's block kriging was read from Stage 5's cached steps.
+
+| Field (model) | Upper bound, m | Grid points | Mean (95 % interval) | SD | Posterior weight above the original bound |
+|---|---|---|---|---|---|
+| IL-DG (c) | 1,820 | 987 | 60.860 (59.418–62.315) | 0.737 | — |
+| | 3,640 | 1,134 | 60.862 (59.413–62.323) | 0.740 | 0.14 |
+| | 5,460 | 1,218 | 60.864 (59.411–62.328) | 0.742 | 0.23 |
+| IL-MC (b, shared) | 2,491 | 1,449 | 50.786 (49.044–52.529) | 0.885 | — |
+| | 4,981 | 1,596 | 50.786 (49.044–52.529) | 0.885 | 0.00 |
+| | 7,472 | 1,680 | 50.786 (49.044–52.529) | 0.885 | 0.00 |
+| IL-RT (a) | 2,401 | 8,232 | 62.770 (61.589–63.943) | 0.598 | — |
+| | 4,801 | 9,261 | 62.771 (61.585–63.948) | 0.601 | 0.25 |
+| | 7,202 | 9,849 | 62.771 (61.584–63.950) | 0.602 | 0.36 |
+
+- **W2: PASS.** At the original bounds the three means and intervals equal
+  Stage 5's exactly (difference 0), the posterior recomputed by this path.
+- **W4: all three field means are robust to the bound.** The largest moves:
+  0.003 Mg C/ha in the mean (0.5 % of a standard deviation) and 0.7 % in the
+  interval's width, at IL-DG. At IL-RT a quarter to a third of the posterior
+  moves beyond the old bound, and the mean moves by 0.001 Mg C/ha: over a
+  field this size, a longer range is absorbed by the unknown mean, as the
+  review allowed it might be. At IL-MC the shared posterior, which all
+  eight fields inform, puts no weight beyond 2,491 m.
+- IL-RT's interval stays 46 % narrower than the sample mean's under every
+  bound. M2's question is answered: the bound does not drive the field means.
 
 ### References for Stage 5
 

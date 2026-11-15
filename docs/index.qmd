@@ -132,8 +132,10 @@ are not a probability sample, so their design-based intervals are naive;
 IL-BR's low level is unexplained by the published data. Each field's mean
 model was selected on the same cross-validation that scores it, and its
 covariance family, anisotropy and Box-Cox λ were chosen from all its stocks;
-the prior bounds the correlation range where the data identify it least,
-which matters most for a field mean. A review of this release lists these
+the prior bounds the correlation range where the data identify it least.
+Widening that bound twofold and threefold at the three fields whose range
+sits at it moves their field means by at most 0.003 Mg C/ha and their
+intervals' widths by under 1 %. A review of this release lists these
 and how they are being addressed:
 [REVIEW_V1](https://github.com/aolagoke-dsae/soil-carbon-kriging/blob/main/docs/REVIEW_V1.md).
 
