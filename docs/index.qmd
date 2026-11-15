@@ -80,9 +80,11 @@ not with machine learning in general.
 95 % intervals. The two estimates agree at every field; block kriging's
 interval is 6 to 46 % narrower at seven fields and 2 % wider at IL-BR. Both
 come from the same samples, so their agreement shows that they are
-consistent, not that either is accurate. IL-BR's level is under review: its
-carbon contents and bulk densities look implausible beside the other
-fields'.
+consistent, not that either is accurate. IL-BR's 20 implausibly loose
+segments move its mean by only 0.36 Mg C/ha, so its low level is its carbon
+content's (median 0.56 % above 30 cm,
+against 1.6–1.9 % elsewhere); the dataset's author is being asked to confirm
+it.
 
 ![Field means](figures/field_means.png)
 

@@ -19,7 +19,8 @@ against its DOI record on that day.
 
 **Status:** section 3's findings but the last, and the wording of m1, m3,
 m5 and m6, adopted on 15 November 2026 (RUNBOOK, *Review of v1.0*); m2 is
-listed among the report's limits. M1–M5 and m4 are to enter the RUNBOOK as
+listed among the report's limits. M5 addressed on 15 November 2026 (RUNBOOK,
+Stage 1, *Addendum*), the author's answer awaited. M1–M4 and m4 are to enter the RUNBOOK as
 dated addenda with rules fixed before they run, as Stage 4's did; this file
 records what was found, and the RUNBOOK records what was done about it.
 

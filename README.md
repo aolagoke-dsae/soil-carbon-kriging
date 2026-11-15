@@ -114,7 +114,7 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 - **Field means (Stage 5):** Bayesian block kriging of each field's mean,
   checked against a direct solve, a calibration simulation and R's gstat
   (Checkpoint 5, 5/5 rules).
-- **Tests and CI:** 236 unit tests, none of which makes a request, four of
+- **Tests and CI:** 239 unit tests, none of which makes a request, four of
   them redrawing the report's figures from their committed tables; CI on
   Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
   gstat check in R.
@@ -143,8 +143,11 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 **What Stage 5 found** ([`RUNBOOK.md`](RUNBOOK.md), Stage 5)
 
 - Each field's mean stock in 0–30 cm lies between 50.8 and 65.7 Mg C/ha at
-  seven fields. IL-BR's, 21.8, is under review: its carbon contents and
-  bulk densities look implausible beside the other fields' (review, M5).
+  seven fields. IL-BR's, 21.8, is low because its carbon content is (median
+  0.56 % above 30 cm, against 1.6–1.9 % elsewhere), not because of its bulk
+  densities: its 20 implausibly loose segments move its mean by 0.36 Mg C/ha.
+  It awaits confirmation from the dataset's author (review, M5; RUNBOOK,
+  Stage 1, *Addendum*).
 - Block kriging and the sample mean agree at every field; the block-kriging
   interval is 6 to 46 % narrower at seven fields and 2 % wider at IL-BR.
   Both come from the same samples, so their agreement shows consistency,

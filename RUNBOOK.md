@@ -35,7 +35,8 @@ with its rules fixed first, says so.
 |---|---|---|
 | 15.11.2026 | Wording: the README's first paragraph (Bayesian, not ordinary, kriging; BZE-LW pulled, not modelled); the range of MEC beside the IL-RT map (m1); the gstat discrepancy called unexplained (m3); "this forest", not machine learning (m5); the fixed-depth and carry-over caveats on the detectable change (m6, M4's wording); IL-BR's wider interval and IL-BR's level under review (M5's wording); the count of seven against five fields (M1's wording); the report's limits gain m2, M1 and M2. "What is real" in the README in bullets | README, `docs/index.qmd`, `detectable_change.png`'s subtitle |
 | 15.11.2026 | matplotlib and GeoPandas in `requirements.txt` and the lock file, which gains them and their dependencies and changes no other pin (`uv pip compile --universal --python-version 3.11`, without `--upgrade`); four unit tests redraw the report's figures from their committed tables, so CI now runs `figures.py`; 236 tests pass from the lock on Python 3.14 | `requirements.txt`, `requirements-lock.txt`, `src/report/test_figures.py` |
-| open | M1–M5 and m4, as addenda to Stages 1, 4 and 5; the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | M5: a plausibility flag for all eight fields (Q1–Q5); IL-BR's low level is its carbon content's, not its bulk density's; the question to the dataset's author drafted | Stage 1, *Addendum*; `src/checks/plausibility.py` |
+| open | M1–M4 and m4, as addenda to Stages 4 and 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -210,6 +211,38 @@ concentration, which the figshare description gives in %.
 | Q3 sensitivity | For each field, the sample mean of the 0–30 cm stocks over all its stocks and over those of locations without a flagged segment, and the difference | Says whether the flagged densities could explain a field's level |
 | Q4 sample sizes | For each field, its locations with a stock beside Table 1's sample size | Table 1 counts samples; the data count locations. A difference is reported, not judged |
 | Q5 IL-BR's verdict | If Q3 moves IL-BR's sample mean by less than 1 Mg C/ha, its low level is the carbon content's, not the bulk density's, and IL-BR is reported as low in carbon in the published data, unconfirmed by the authors. Otherwise its field mean is reported as provisional, with Q3's two means beside it. Either way the question goes to the dataset's author, and IL-BR stays out of the README's headline range until it is answered | 1 Mg C/ha is about 5 % of IL-BR's mean and about twice the standard deviation of its block-kriged mean (0.51) |
+
+    python -m src.checks.plausibility
+
+**Result, 15 November 2026.** Segments above 30 cm, the stocks of Stage 2,
+and their sample means (Mg C/ha):
+
+| Field | Segments, flagged | Stocks, with a flagged segment | Median SOCc, % | Median BD, g/cm³ | Mean, all | Mean, unflagged | Shift | Table 1 sample size |
+|---|---|---|---|---|---|---|---|---|
+| IL-BR | 186, **20** | 60, **18** | 0.56 | 1.12 | 21.84 | 22.21 | +0.36 | 59 |
+| IL-DG | 194, 0 | 97, 0 | 1.69 | 1.21 | 60.96 | 60.96 | 0 | 86 |
+| IL-MC | 104, 4 | 52, 4 | 1.64 | 1.06 | 50.91 | 51.12 | +0.21 | 50 |
+| IL-PT | 185, 1 | 92, 1 | 1.89 | 1.07 | 61.46 | 61.57 | +0.11 | 89 |
+| IL-RD | 248, 0 | 248, 0 | 1.80 | 1.17 | 65.41 | 65.41 | 0 | 247 |
+| IL-RS | 225, 0 | 225, 0 | 1.91 | 1.11 | 64.03 | 64.03 | 0 | 223 |
+| IL-RT | 246, 0 | 245, 0 | 1.89 | 1.12 | 61.72 | 61.72 | 0 | 229 |
+| NE | 432, 1 | 144, 1 | 1.63 | 1.35 | 64.43 | 64.51 | +0.08 | 144 |
+
+- **Q1–Q3.** 20 of IL-BR's 186 segments are loose and low in carbon (the
+  review's count of 12 was of BD below 0.85 alone), against 6 in the other
+  seven fields together; they touch 18 of IL-BR's 60 stocks. Without them,
+  IL-BR's mean moves by +0.36 Mg C/ha.
+- **Q5. IL-BR's level is the carbon content's, not the bulk density's.** Its
+  median SOCc above 30 cm, 0.56 %, is a third of the other fields' (1.63–
+  1.91 %), in a silt loam like four of the others. IL-BR is reported as low in
+  carbon in the published data, unconfirmed by the authors; the question
+  goes to the dataset's author, and IL-BR stays out of the README's headline
+  range until it is answered.
+- **Q4.** The locations with a stock match Table 1's sample sizes within
+  four at six fields; IL-DG has 97 against 86 and IL-RT 245 against 229.
+  Reported, not judged: Table 1 may count the samples of the paper's
+  analysis rather than the published locations. It goes into the same
+  question to the author.
 
 ---
 
