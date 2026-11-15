@@ -2265,7 +2265,7 @@ sources; run the clients where they are reachable, as Stage 1's pulls were:
 ```bash
 python -m src.ingest.dwd_client            # DWD: listings, then the two annual grids of the latest common period
 python -m src.ingest.bkg_client            # BKG: DGM200, checked against its published MD5
-python -m src.ingest.organic_client       # the map of organic soils, from its DOI on OpenAgrar
+python -m src.ingest.organic_client --from-file <zip> --url <link>   # the map of organic soils, downloaded by hand from its DOI's record
 ```
 
 What was read before writing them, on 15 November 2026: DWD's terms of use
@@ -2321,6 +2321,16 @@ GeoPackage" in the record's extent) and `README.txt`. The client now reads
 the landing page the DOI resolves to, stores it, and takes the README and
 the zip from its links, the zip accepted only if it holds a GeoPackage. D2's
 source is unchanged; only the way to it is.
+
+**15.11.2026: OpenAgrar answers a script with a security check.** The
+client's request for the landing page returned HTTP 200 with a page titled
+"Security Check", a proof-of-work challenge, instead of the record (kept in
+`raw/THUENEN/organic/landing/_failed/`). The challenge is a bot check, and
+this repository does not solve it. The zip is downloaded by hand in a
+browser from the record the DOI resolves to, and stored with
+`python -m src.ingest.organic_client --from-file <path> --url <link>`: write-once,
+with a manifest row whose status reads "manual", accepted only if the zip
+holds a GeoPackage.
 
 ### References for Stage 6
 

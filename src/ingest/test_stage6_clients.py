@@ -167,3 +167,19 @@ def test_organic_pull_stores_landing_readme_and_zip(monkeypatch, tmp_path):
     rows = O.pull()
     assert len(rows) == 3 and [r["rejected"] for r in _manifest(root)] == ["0"] * 3
     assert O.pull() == []
+
+
+def test_organic_from_a_hand_downloaded_copy(monkeypatch, tmp_path):
+    root = _raw(monkeypatch, tmp_path, O)
+    good = tmp_path / "Thuenen_Kulisse_OrgBoeden_v1.zip"
+    good.write_bytes(_zip("k.gpkg"))
+    row = O.from_file(good, "https://www.openagrar.de/x/Thuenen_Kulisse_OrgBoeden_v1.zip")
+    assert row["http_status"] == "manual" and row["rejected"] == 0
+    assert O.raw_store.current_version(O.item(O.ZIP_NAME)) is not None
+    bad = tmp_path / "other" / "Thuenen_Kulisse_OrgBoeden_v1.zip"
+    bad.parent.mkdir()
+    bad.write_bytes(_zip("k.shp"))
+    with pytest.raises(RuntimeError, match="no GeoPackage"):
+        O.from_file(bad)
+    with pytest.raises(RuntimeError, match="expected"):
+        O.from_file(tmp_path / "other.zip") if (tmp_path / "other.zip").write_bytes(b"x") else None

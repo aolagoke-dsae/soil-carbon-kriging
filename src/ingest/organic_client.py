@@ -15,6 +15,11 @@ feature types that can be it:
         README.txt and Thuenen_Kulisse_OrgBoeden_v1.zip (a GeoPackage), the
         zip accepted only if it holds a .gpkg
 
+    python -m src.ingest.organic_client --from-file PATH [--url URL]
+        a copy downloaded by hand in a browser, where OpenAgrar answers a
+        script with a proof-of-work "Security Check" instead of the record
+        (15.11.2026): stored write-once and recorded in the manifest
+
 On 15.11.2026 the WFS endpoint Stage 1 used, atlas.thuenen.de/geoserver/ows,
 answered GetCapabilities with HTTP 404 (RUNBOOK, Stage 6, If it fails).
 
@@ -199,7 +204,32 @@ def pull(refresh: bool = False) -> list[dict]:
     return rows
 
 
+def from_file(path: Path, url: str = DOI) -> dict:
+    """A copy downloaded by hand, from the record the DOI resolves to: stored
+    and recorded like any response, the zip accepted only if it holds a
+    GeoPackage. The manifest's status column says 'manual', and its url the
+    address the author gave."""
+    raw_store.check_manifest(MANIFEST)
+    body = Path(path).read_bytes()
+    name = Path(path).name
+    if name not in (ZIP_NAME, README_NAME):
+        raise RuntimeError(f"{name}: expected {ZIP_NAME} or {README_NAME}")
+    ok = usable_zip(200, body) if name == ZIP_NAME else bool(body)
+    row = _record(item(name), url, "manual", body, ok, 0, DOI)
+    if not ok:
+        raise RuntimeError(f"{name} rejected: no GeoPackage inside")
+    return row
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--from-file"] and len(argv) in (2, 4) and (len(argv) == 2 or argv[2] == "--url"):
+        try:
+            r = from_file(Path(argv[1]), argv[3] if len(argv) == 4 else DOI)
+        except (RuntimeError, OSError) as e:
+            print(f"FAILED: {e}")
+            return 1
+        print(f"stored  {r['bytes']:>10} bytes  {r['path']}  sha256 {r['sha256'][:16]}")
+        return 0
     if argv in ([], ["--refresh"]):
         try:
             rows = pull(refresh=bool(argv))
