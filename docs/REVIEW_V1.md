@@ -25,7 +25,9 @@ the USDA soil survey; the author's answer awaited. M1 addressed the same
 day (RUNBOOK, Stage 4, *Addendum* on M1): against QRF 6 wins and 2 losses,
 against RF-RK 3 wins, 1 tie and 4 losses. M2 addressed the same day
 (RUNBOOK, Stage 5, *Addendum* on M2): the field means are robust to the
-bound. M3, M4 and m4 are to enter the RUNBOOK as
+bound. M3 addressed the same day (RUNBOOK, Stage 5, *Addendum* on M3):
+held-out halves support the narrower intervals, pooled, though not at IL-DG
+and IL-RD. M4 and m4 are to enter the RUNBOOK as
 dated addenda with rules fixed before they run, as Stage 4's did; this file
 records what was found, and the RUNBOOK records what was done about it.
 

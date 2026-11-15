@@ -40,7 +40,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
-| open | M3 (rules fixed 15.11.2026), M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
+| open | M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2082,6 +2083,38 @@ M3). These rules check them against samples the kriging has not seen.*
 | H3 the target and the two predictives | The target is the mean of the stocks in the held-out half B, which is observed. **Kriging:** D2's Bayesian kriging fitted to half A alone (its posterior, and at (c) fields its drift chosen by AIC from A as D4 does) predicts the mean of B's points, the nugget included, since B's mean includes it: the posterior mixture of Student-t with n_A − p degrees of freedom. **Sample mean:** A's mean, with a t predictive on n_A − 1 degrees of freedom and scale s_A √(1/n_A + 1/n_B), the formula Stage 5's design-based interval uses | B's mean is the one quantity on these fields that is observed and that the field mean's method predicts with the same covariance model. It is not the field mean itself, which no sample observes: the check tests the model's calibration for an average, not the field mean directly |
 | H4 scores | Per field and pooled: the share of B's means inside each predictive's central 95 % and 80 % intervals, the mean CRPS, and the mean width of the 95 % intervals, kriging's against the sample mean's | Coverage and CRPS as in Stage 4 (D8); the width is the "narrower" claim |
 | H5 the verdict | Block kriging's narrower intervals are **supported by held-out samples** if, pooled over the 200 predictions, its 95 % intervals hold at least 90 % of B's means and its mean CRPS is no greater than the sample mean's. Otherwise the README and the report say that held-out samples do not support them | The 200 predictions overlap, so they are not independent, and the coverage is descriptive; 90 % allows for that and for 200 draws (a binomial 95 % interval at 0.95 runs to about 0.92) |
+
+    python -m src.transform.halves --budget 150     (repeat until it finishes)
+
+**Result, 15 November 2026.** 200 predictions, in four runs of under three
+minutes. Halves of 46–124 locations. Per field, the share of B's means
+inside the 95 % and 80 % intervals, the mean CRPS (Mg C/ha) and the mean
+width of the 95 % interval (Mg C/ha), kriging / sample mean:
+
+| Field | In 95 % | In 80 % | CRPS | Width 95 % | Kriging's width as a share of the sample mean's |
+|---|---|---|---|---|---|
+| IL-DG (c) | 0.900 / 0.900 | 0.700 / 0.800 | 0.983 / 0.976 | 5.96 / 6.66 | 0.89 |
+| IL-PT (c) | 0.925 / 0.950 | 0.750 / 0.725 | 0.899 / 0.941 | 5.60 / 6.16 | 0.91 |
+| IL-RD (c) | 0.900 / 0.950 | 0.700 / 0.825 | 1.124 / 1.073 | 6.01 / 7.14 | 0.84 |
+| IL-RS (c) | 0.975 / 1.000 | 0.850 / 0.800 | 0.801 / 1.004 | 6.00 / 7.78 | 0.77 |
+| IL-RT (a) | 0.975 / 0.950 | 0.800 / 0.850 | 0.797 / 1.198 | 6.17 / 8.81 | 0.70 |
+| **Pooled** | **0.935 / 0.950** | **0.760 / 0.800** | **0.921 / 1.038** | **5.95 / 7.31** | **0.81** |
+
+- **H5: block kriging's narrower intervals are supported by held-out
+  samples.** Pooled, its 95 % intervals hold 0.935 of the held-out halves'
+  means (rule: at least 0.90) and its CRPS is 11 % below the sample mean's,
+  with intervals 19 % narrower.
+- **Where it gains, and where it does not.** At IL-RT and IL-RS, the fields
+  where Stage 5 found kriging's interval narrowest, it is 23–30 % narrower
+  here, covers as well as the sample mean, and its CRPS is 20–33 % lower. At
+  IL-DG and IL-RD its CRPS is 1–5 % higher than the sample mean's and its 80
+  % intervals hold only 0.70 of the means: narrower there without being
+  better. Its 80 % intervals hold 0.76 pooled, a little under their level.
+- What this checks: the model's prediction of an average of stocks from
+  half the samples, the nugget included. It is not the field mean, which no
+  sample observes, and the halves are smaller than the full samples Stage 5
+  krigs from, so the full-sample intervals are narrower still. The 40
+  predictions per field overlap, so the coverages are descriptive.
 
 ### References for Stage 5
 

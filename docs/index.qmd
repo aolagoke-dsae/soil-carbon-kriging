@@ -82,7 +82,11 @@ not with machine learning in general.
 95 % intervals. The two estimates agree at every field; block kriging's
 interval is 6 to 46 % narrower at seven fields and 2 % wider at IL-BR. Both
 come from the same samples, so their agreement shows that they are
-consistent, not that either is accurate. IL-BR's 20 implausibly loose
+consistent, not that either is accurate. Against held-out samples, at the
+five grid fields: kriging fitted to half the samples predicts the other
+half's mean with 95 % intervals that hold 93.5 % of them, 19 % narrower
+than the sample mean's and with an 11 % lower CRPS. The gain is at IL-RT
+and IL-RS; at IL-DG and IL-RD the narrower intervals score no better. IL-BR's 20 implausibly loose
 segments move its mean by only 0.36 Mg C/ha, so its low level is its carbon
 content's (median 0.56 % above 30 cm,
 against 1.6–1.9 % elsewhere). The USDA soil survey (SSURGO) agrees: it
