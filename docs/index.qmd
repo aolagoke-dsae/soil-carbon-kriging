@@ -83,8 +83,9 @@ come from the same samples, so their agreement shows that they are
 consistent, not that either is accurate. IL-BR's 20 implausibly loose
 segments move its mean by only 0.36 Mg C/ha, so its low level is its carbon
 content's (median 0.56 % above 30 cm,
-against 1.6–1.9 % elsewhere); the dataset's author is being asked to confirm
-it.
+against 1.6–1.9 % elsewhere). The USDA soil survey (SSURGO) agrees: it
+expects IL-BR's soils to hold about a third of the other Illinois fields'
+carbon. The dataset's author is being asked to confirm it.
 
 ![Field means](figures/field_means.png)
 

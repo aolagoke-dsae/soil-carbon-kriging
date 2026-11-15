@@ -36,6 +36,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | Wording: the README's first paragraph (Bayesian, not ordinary, kriging; BZE-LW pulled, not modelled); the range of MEC beside the IL-RT map (m1); the gstat discrepancy called unexplained (m3); "this forest", not machine learning (m5); the fixed-depth and carry-over caveats on the detectable change (m6, M4's wording); IL-BR's wider interval and IL-BR's level under review (M5's wording); the count of seven against five fields (M1's wording); the report's limits gain m2, M1 and M2. "What is real" in the README in bullets | README, `docs/index.qmd`, `detectable_change.png`'s subtitle |
 | 15.11.2026 | matplotlib and GeoPandas in `requirements.txt` and the lock file (the review missed that `requirements-figures.txt` already declared them; it stays, since the notebooks name it), which gains them and their dependencies and changes no other pin (`uv pip compile --universal --python-version 3.11`, without `--upgrade`); four unit tests redraw the report's figures from their committed tables, so CI now runs `figures.py`; 236 tests pass from the lock on Python 3.14 | `requirements.txt`, `requirements-lock.txt`, `src/report/test_figures.py` |
 | 15.11.2026 | M5: a plausibility flag for all eight fields (Q1–Q5); IL-BR's low level is its carbon content's, not its bulk density's; the question to the dataset's author drafted | Stage 1, *Addendum*; `src/checks/plausibility.py` |
+| 15.11.2026 | M5: IL-BR against SSURGO (U1–U5): consistent with the soil survey, which itself expects IL-BR to hold a third of the other Illinois fields' carbon | Stage 1, *Addendum* on the soil survey; `src/ingest/sda_client.py`, `src/checks/ssurgo.py` |
 | open | M1–M4 and m4, as addenda to Stages 4 and 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
@@ -264,6 +265,42 @@ IL-BR is judged by how well the soil survey matches the other seven.*
 cannot reach SDA (its egress proxy answers 403); run
 `python -m src.ingest.sda_client` where it is reachable, as Stage 1's pulls
 were, then `python -m src.checks.ssurgo`.
+
+**Result, 15 November 2026.** The pull ran on the author's machine (ten
+responses, all accepted; `raw/manifest.csv`). Survey areas IL019, IL041,
+IL083, IL115 and IL147 were last saved on 23 August 2026, NE155 on 11
+September 2026. Every one of the 1,163 locations lies in a map unit with
+organic matter, three to six map units per field. Organic carbon in 0–30 cm,
+%, as the mean over each field's locations:
+
+| Field | Observed | SSURGO (low–high) | Observed / SSURGO | Observed within low–high | Stock, Mg C/ha: observed / SSURGO |
+|---|---|---|---|---|---|
+| **IL-BR** | **0.70** | **0.85 (0.41–1.27)** | **0.83** | yes | 21.8 / 36.2 |
+| IL-DG | 1.70 | 2.77 (2.26–3.44) | 0.61 | no | 61.0 / 113.5 |
+| IL-MC | 1.61 | 2.03 (1.52–2.60) | 0.79 | yes | 50.9 / 82.3 |
+| IL-PT | 1.91 | 2.77 (2.23–3.53) | 0.69 | no | 61.5 / 110.6 |
+| IL-RD | 1.88 | 2.47 (1.88–3.21) | 0.76 | yes | 65.4 / 98.4 |
+| IL-RS | 1.91 | 2.38 (1.77–3.03) | 0.80 | yes | 64.0 / 95.0 |
+| IL-RT | 1.87 | 2.56 (1.66–3.32) | 0.73 | yes | 61.7 / 100.7 |
+| NE | 1.61 | 1.30 (0.89–1.89) | 1.23 | yes | 64.4 / 52.2 |
+
+- **U4: IL-BR is consistent with the soil survey.** Its ratio, 0.83, lies
+  within the other seven's, 0.61 to 1.23. The survey itself expects IL-BR's
+  soils to hold a third of the other Illinois fields' carbon (0.85 % against
+  2.03–2.77 %), and IL-BR's measured mean lies inside its map units' low–high
+  range. Its low level is what SSURGO maps for that ground. The README says
+  so; under Q5, IL-BR stays out of the headline range until the dataset's
+  author answers.
+- The ratios' spread, 0.61 to 1.23, makes U4 a coarse test: an error of up
+  to about 25 % in IL-BR's carbon, either way, would still pass it. It does
+  rule out a level wrong by a factor of two or more, which is what the
+  review asked.
+- At six of the seven Illinois fields SSURGO expects more carbon than was
+  measured, by a ratio of 0.61 to 0.80; at NE less. Reported, not judged:
+  SSURGO's values are representative of a map unit's components, not of
+  these fields under cultivation, and 0.58 is a conventional factor.
+- The stocks from SSURGO's bulk densities are higher still at the Illinois
+  fields; they are reported, not judged (U3).
 
 ### References for the Stage 1 addenda
 
