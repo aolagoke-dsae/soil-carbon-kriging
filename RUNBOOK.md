@@ -37,6 +37,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | matplotlib and GeoPandas in `requirements.txt` and the lock file (the review missed that `requirements-figures.txt` already declared them; it stays, since the notebooks name it), which gains them and their dependencies and changes no other pin (`uv pip compile --universal --python-version 3.11`, without `--upgrade`); four unit tests redraw the report's figures from their committed tables, so CI now runs `figures.py`; 236 tests pass from the lock on Python 3.14 | `requirements.txt`, `requirements-lock.txt`, `src/report/test_figures.py` |
 | 15.11.2026 | M5: a plausibility flag for all eight fields (Q1–Q5); IL-BR's low level is its carbon content's, not its bulk density's; the question to the dataset's author drafted | Stage 1, *Addendum*; `src/checks/plausibility.py` |
 | 15.11.2026 | M5: IL-BR against SSURGO (U1–U5): consistent with the soil survey, which itself expects IL-BR to hold a third of the other Illinois fields' carbon | Stage 1, *Addendum* on the soil survey; `src/ingest/sda_client.py`, `src/checks/ssurgo.py` |
+| 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
 | open | M1–M4 and m4, as addenda to Stages 4 and 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
@@ -1736,6 +1737,22 @@ posterior, the kriging in blocks of 1,200 cells, QRF), each cached. The
 split changes no result beyond rounding: the module matches the notebook's
 cells, computed in one piece, within 2.0 × 10⁻¹³ Mg C/ha.
 
+### Addendum (review of v1.0, M1): the mean model chosen without the held-out fold
+
+*Rules fixed 15 November 2026, before `src/transform/nested.py` is written
+or run. The review (`docs/REVIEW_V1.md`, M1) found that D5 chose each
+field's mean model on the same cross-validation scores that are then
+reported. These rules choose it again, for each held-out fold, without that
+fold's scores, and report what the comparisons become. Nothing is refitted:
+every prediction is one the cross-validation of 8 November recorded.*
+
+| Rule | What | Why |
+|---|---|---|
+| N1 selection without the fold | In repeat r, for the locations of field f in fold k, the mean model is the one of (a), (b) and (c) whose Bayesian kriging has the lowest CRPS averaged over f's locations in the other nine folds of repeat r; their prediction is that model's, as `curated/potash_cv.parquet` records it. Other repeats are not used, since there fold k's locations are held out themselves | Choosing on scores that exclude fold k's removes the optimism of choosing on its own (Varma & Simon 2006). One leak remains and is stated: fold k's stocks trained the predictions the other folds were scored on. A fully nested cross-validation, refitting the three Bayesian krigings inside every training set, would take about ten times Stage 4's 45 minutes and is not run |
+| N2 scores | Per field, for the kriging of N1, D5's selected kriging, each of (a), (b) and (c), QRF and RF-RK: the CRPS and MEC, per repeat and averaged as D8 does, and PICP at 90 %; pooled over the fields, the largest departure of QCP from its level and MSDR | The same scores as Stage 4's, so that only the selection changes |
+| N3 wins and ties | For the kriging of N1 against QRF and against RF-RK, per field: a win, a tie or a loss, a tie being a difference in CRPS below 1 % of the larger of the two. The README and the report state the counts N3 gives, in place of "seven of eight" | The review asked for small differences to be called ties |
+| N4 stability | Per field, how many of the 30 (repeat, fold) pairs choose each of (a), (b) and (c) | A selection that changes from fold to fold is weak evidence for any one model |
+
 ### References for Stage 4
 
 - Behrens, T., Zhu, A.-X., Schmidt, K., et al. (2010). Multi-scale digital terrain analysis and feature selection for digital soil mapping. *Geoderma*, 155(3–4), 175–185. https://doi.org/10.1016/j.geoderma.2009.07.010
@@ -1776,6 +1793,7 @@ cells, computed in one piece, within 2.0 × 10⁻¹³ Mg C/ha.
 - Vaysse, K., & Lagacherie, P. (2017). Using quantile regression forest to estimate uncertainty of digital soil mapping products. *Geoderma*, 291, 55–64. https://doi.org/10.1016/j.geoderma.2016.12.017
 - Voltz, M., & Webster, R. (1990). A comparison of kriging, cubic splines and classification for predicting soil properties from sample information. *Journal of Soil Science*, 41(3), 473–490. https://doi.org/10.1111/j.1365-2389.1990.tb00080.x
 - Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
+- Varma, S., & Simon, R. (2006). Bias in error estimation when using cross-validation for model selection. *BMC Bioinformatics*, 7, 91. https://doi.org/10.1186/1471-2105-7-91
 
 ---
 
