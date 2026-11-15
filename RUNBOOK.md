@@ -40,7 +40,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
-| open | M3, M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| open | M3 (rules fixed 15.11.2026), M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2067,6 +2067,21 @@ bound's block kriging was read from Stage 5's cached steps.
   eight fields inform, puts no weight beyond 2,491 m.
 - IL-RT's interval stays 46 % narrower than the sample mean's under every
   bound. M2's question is answered: the bound does not drive the field means.
+
+### Addendum (review of v1.0, M3): the field-mean intervals against held-out samples
+
+*Rules fixed 15 November 2026, before `src/transform/halves.py` is written
+or run. Stage 5's B3 checked the block-kriging intervals on fields simulated
+from the fitted model, which tests the code, not the model (`docs/REVIEW_V1.md`,
+M3). These rules check them against samples the kriging has not seen.*
+
+| Rule | What | Why |
+|---|---|---|
+| H1 the fields | The five grid fields, IL-DG, IL-PT, IL-RD, IL-RS and IL-RT, each with its Stage 5 model (D5's selection) | Their samples spread evenly over the field, so either half of them does too. IL-BR, IL-MC and NE are clustered or not a probability sample (Stage 5, D3) |
+| H2 the splits | Per field, 20 random splits of its locations into two halves (sizes differing by at most one), from a fixed seed. Each split is used both ways: 40 predictions per field, 200 in all | Twenty splits make the coverage readable; using each split both ways uses every location as a target equally often |
+| H3 the target and the two predictives | The target is the mean of the stocks in the held-out half B, which is observed. **Kriging:** D2's Bayesian kriging fitted to half A alone (its posterior, and at (c) fields its drift chosen by AIC from A as D4 does) predicts the mean of B's points, the nugget included, since B's mean includes it: the posterior mixture of Student-t with n_A − p degrees of freedom. **Sample mean:** A's mean, with a t predictive on n_A − 1 degrees of freedom and scale s_A √(1/n_A + 1/n_B), the formula Stage 5's design-based interval uses | B's mean is the one quantity on these fields that is observed and that the field mean's method predicts with the same covariance model. It is not the field mean itself, which no sample observes: the check tests the model's calibration for an average, not the field mean directly |
+| H4 scores | Per field and pooled: the share of B's means inside each predictive's central 95 % and 80 % intervals, the mean CRPS, and the mean width of the 95 % intervals, kriging's against the sample mean's | Coverage and CRPS as in Stage 4 (D8); the width is the "narrower" claim |
+| H5 the verdict | Block kriging's narrower intervals are **supported by held-out samples** if, pooled over the 200 predictions, its 95 % intervals hold at least 90 % of B's means and its mean CRPS is no greater than the sample mean's. Otherwise the README and the report say that held-out samples do not support them | The 200 predictions overlap, so they are not independent, and the coverage is descriptive; 90 % allows for that and for 200 draws (a binomial 95 % interval at 0.95 runs to about 0.92) |
 
 ### References for Stage 5
 
