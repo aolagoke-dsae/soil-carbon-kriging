@@ -184,6 +184,33 @@ only when its segments run from the surface to 30 cm without a gap or an
 overlap (`covers()`, tested), out of all the site's locations, with segments
 or not. It is reported, not judged, so the verdict did not change.
 
+### Addendum (review of v1.0, M5): plausibility of the Potash segments
+
+*Rules fixed 15 November 2026, before `src/checks/plausibility.py` is
+written or run. Not before the data: the review that asked for them
+(`docs/REVIEW_V1.md`, M5) had already counted IL-BR's low bulk densities, so
+the threshold below was set by a reader who had seen them. To keep that from
+singling out one field, the rules apply to all eight alike, and they report;
+they change no stock, drop no location and rerun no stage.*
+
+**What was read.** Table 1 of Potash et al. (2023), read on 15 November 2026:
+IL-BR is a **silt loam** (from SSURGO; texture was measured only at IL-DG,
+IL-MC and IL-PT), under no-till, sampled in June 2019 to 60 cm in segments of
+0–10, 10–20, 20–30 and 30–60 cm, with a sample size of 59. Its texture does
+not explain a carbon content a third of the other fields'. The paper
+measures total carbon by dry combustion, removes inorganic carbon with 1 %
+HCl where the pH exceeds 7.2, and computes bulk density as a segment's
+oven-dry mass over its volume; the text read gives no unit for the carbon
+concentration, which the figshare description gives in %.
+
+| Rule | What | Why |
+|---|---|---|
+| Q1 flag | A segment above 30 cm is flagged when its BD is below 0.9 g/cm³ and its SOCc below 2 %: a mineral soil that low in carbon so loose | P6 checks only that BD lies in (0, 2.65]. The threshold is the review's, and was chosen after it saw IL-BR's values (above) |
+| Q2 per field | For each field: segments above 30 cm, flagged segments, and the locations with a stock that have one; the median SOCc and BD above 30 cm | One table for all eight fields, so that IL-BR is judged beside the others |
+| Q3 sensitivity | For each field, the sample mean of the 0–30 cm stocks over all its stocks and over those of locations without a flagged segment, and the difference | Says whether the flagged densities could explain a field's level |
+| Q4 sample sizes | For each field, its locations with a stock beside Table 1's sample size | Table 1 counts samples; the data count locations. A difference is reported, not judged |
+| Q5 IL-BR's verdict | If Q3 moves IL-BR's sample mean by less than 1 Mg C/ha, its low level is the carbon content's, not the bulk density's, and IL-BR is reported as low in carbon in the published data, unconfirmed by the authors. Otherwise its field mean is reported as provisional, with Q3's two means beside it. Either way the question goes to the dataset's author, and IL-BR stays out of the README's headline range until it is answered | 1 Mg C/ha is about 5 % of IL-BR's mean and about twice the standard deviation of its block-kriged mean (0.51) |
+
 ---
 
 ## Stage 2: stocks in 0–30 cm and covariance models (Potash fields)
