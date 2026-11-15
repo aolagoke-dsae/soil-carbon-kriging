@@ -2257,6 +2257,26 @@ Those descriptions were made at the true site and are not moved.
 | D8 the maps | For mineral soils, at the centre of every 1 km cell of Germany: model (a) or (b), whichever D6 scores better under reading (ii), predicts the stock in 0–30 cm **if the cell were cropland** and **if it were grassland**, with its median and 90 % interval; the covariates of each cell read as D3's (ii) around its centre. The maps say that they are conditional on the land use, and that they are not masked to agricultural land | A map from these data cannot know where the fields are; conditioning on the land use says what it can |
 | D9 not done | No LUCAS data, no tuning, no covariate selection, no organic-soil map of stocks (146 sites cannot carry one), no change over time | Stated rather than left out silently |
 
+### The pulls
+
+The environment this repository is written in reaches none of the three
+sources; run the clients where they are reachable, as Stage 1's pulls were:
+
+```bash
+python -m src.ingest.dwd_client            # DWD: listings, then the two annual grids of the latest common period
+python -m src.ingest.bkg_client            # BKG: DGM200, checked against its published MD5
+python -m src.ingest.organic_client --discover   # Thünen Atlas: which layer is the map of organic soils
+```
+
+What was read before writing them, on 15 November 2026: DWD's terms of use
+(CC BY 4.0) and the directory listings, which show reference periods
+1961–1990 to 1991–2020 but cut the file names short, so the client chooses
+the files from the listings it stores; BKG's download directory
+(`dgm200.utm32s.tiff.zip`, 34 MB, beside an `.md5`) and its licence
+(dl-de/by-2-0, attribution "© GeoBasis-DE / BKG (year) dl-de/by-2-0"); and
+the Atlas record of the map of organic soils (CC BY 4.0), which names no
+WFS layer, hence `--discover` first.
+
 ### Checkpoint 6
 
 Checkpoint 6 passes when every rule below passes. Each rule is one function
