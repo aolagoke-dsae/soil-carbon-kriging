@@ -39,7 +39,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | M5: IL-BR against SSURGO (U1–U5): consistent with the soil survey, which itself expects IL-BR to hold a third of the other Illinois fields' carbon | Stage 1, *Addendum* on the soil survey; `src/ingest/sda_client.py`, `src/checks/ssurgo.py` |
 | 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
-| open | M2–M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| open | M2 (rules fixed 15.11.2026), M3, M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2023,6 +2023,20 @@ cache, as its hash requires.
 IL-RT's Matérn grid needs 222 correlation functions over 2,903 cells; the
 block kriging and the effort curves now run in cached steps of at most 40.
 
+### Addendum (review of v1.0, M2): the field means against the range's upper bound
+
+*Rules fixed 15 November 2026, before `src/transform/range_bound.py` is
+written or run. The review (`docs/REVIEW_V1.md`, M2) found that D3's prior
+stops the effective range at Stage 2's upper bound, and that at three fields
+Stage 2's estimate of the range lies at that bound. A field mean depends
+most on the long ranges the bound cuts off, and nothing tested how much.*
+
+| Rule | What | Why |
+|---|---|---|
+| W1 the fields and the bounds | At IL-DG, IL-MC and IL-RT, whose Stage 2 estimates of the effective range sit at their upper bounds (1,820, 2,064 and 2,401 m), D2's field mean is computed again with the upper bound multiplied by 2 and by 3. Everything else is D2's: the selected model, its family, anisotropy and lower bound, the prior uniform in log range on a grid of the same step, extended to the new bound; at IL-DG, (c)'s drift as chosen under the original bound, so that only the bound changes; at IL-MC, (b)'s shared posterior, all eight fields' likelihoods evaluated on the wider grid | The three fields the review named. The other five are not rerun: their estimates lie inside their bounds |
+| W2 reproduction | With the factor 1, the computation returns Stage 5's mean and 95 % interval at each of the three fields within 10⁻⁹ Mg C/ha | The rerun is the same code, so it must reproduce what it extends |
+| W3 reported | Per field and factor: the mean, its 95 % interval and standard deviation, the width of the interval, and the posterior weight on ranges above the original bound | Shows how far the result moves and how much of the posterior the bound had cut off |
+| W4 the verdict | A field mean is **robust to the bound** if, at both factors, its mean moves by less than half the standard deviation it had under the original bound and the width of its 95 % interval changes by less than 20 %. A field that is not robust is reported in the README and the report with its means and intervals under all three bounds, and the comparison of interval widths with the sample mean's ("up to 46 % narrower") says so | Half a standard deviation and a fifth of the width are moves a reader of the interval would notice; smaller ones would not change what the interval says |
 
 ### References for Stage 5
 
