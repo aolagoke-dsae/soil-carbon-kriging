@@ -42,7 +42,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
 | 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
 | 15.11.2026 | M4: the grid with the sample mean (G1–G4): for an MDC of 10 %, 25–103 samples by random sampling, 13–65 by the grid's mean, 13–52 by the grid with kriging; most of the reduction is the grid's | Stage 5, *Addendum* on M4; `src/transform/grid_mean.py` |
-| open | m4, an independent check of REML in R; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| open | m4 (rules fixed 15.11.2026), an independent check of REML in R; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -734,6 +734,19 @@ PASS  V3 baseline fits: all 32 baseline fits converged inside D8's bounds; GSToo
 The lock file was regenerated without scikit-gstat (`uv pip compile --universal
 --upgrade`); all 232 tests pass from it on Python 3.14 as well as 3.11.
 
+### Addendum (review of v1.0, m4): REML against R's nlme
+
+*Rules fixed 15 November 2026, before `src/checks/nlme.py` is written or
+run. R1 checks the Gaussian likelihood against scikit-learn's, which has no
+REML; the REML criterion itself was checked only against a second
+implementation in this repository (`docs/REVIEW_V1.md`, m4).*
+
+| Rule | What | Why |
+|---|---|---|
+| L1 the criterion | At all eight fields, under the constant mean and the quadratic trend, with the exponential family, at nine parameter sets (effective range 50, 200 and 800 m; nugget ratio 0.1, 0.4 and 0.7): the restricted log-likelihood maximised over the sill, `reml.reml_profile`, against `nlme::gls(method = "REML")` with `corExp(form = ~ x + y, nugget = TRUE)` held fixed at the same values (range a / ln 20) and this repository's design matrix as the fixed effects. Passes when, at every field and mean model, the nine differences from the first parameter set agree within 10⁻⁶; the offset between the two criteria is reported | nlme is R's reference implementation of generalised least squares by REML (Pinheiro & Bates 2000). Differences between parameter sets are what the fits and the profile intervals use; a constant offset, such as a different treatment of log|X′X|, would change neither |
+| L2 the estimates | At the four large fields under the constant mean: nlme's unconstrained REML estimates of the effective range and the nugget ratio for the exponential, beside this repository's (`reml.fit`, the same family). Reported, not judged | Two optimisers on a flat likelihood can stop apart; L1 is the test, L2 shows how far |
+| L3 where it runs | The fixture `tests/fixtures/reml_fields.json` (the stocks as Stage 2 computed them, CC BY 4.0, coordinates in metres from each field's centroid) is written from `curated/`; the check runs from it wherever R and nlme are, and in CI's R job | As G1 runs from its fixture |
+
 ### References for Stage 2
 
 - Alves, M. de C., da Silva, F. M., Moraes, J. C., et al. (2009). Geostatistical analysis of the spatial variation of the berry borer and leaf miner in a coffee agroecosystem. *Precision Agriculture*, 12(1), 18–31. https://doi.org/10.1007/s11119-009-9151-z
@@ -748,6 +761,7 @@ The lock file was regenerated without scikit-gstat (`uv pip compile --universal
 - Minasny, B., & McBratney, A. B. (2005). The Matérn function as a general model for soil variograms. *Geoderma*, 128(3–4), 192–207. https://doi.org/10.1016/j.geoderma.2005.04.003
 - Olagoke, A., Jeltsch, F., & Tietjen, B. (2023). Small-scale heterogeneity shapes grassland diversity in low-to-intermediate resource environments. *Journal of Vegetation Science*, 34(4). https://doi.org/10.1111/jvs.13196
 - Pebesma, E. J. (2004). Multivariable geostatistics in S: the gstat package. *Computers & Geosciences*, 30(7), 683–691. https://doi.org/10.1016/j.cageo.2004.03.012; default weights from the `fit.variogram` documentation, https://r-spatial.github.io/gstat/reference/fit.variogram.html
+- Pinheiro, J. C., & Bates, D. M. (2000). *Mixed-Effects Models in S and S-PLUS*. Springer. https://doi.org/10.1007/b98882
 - Takoutsing, B., Heuvelink, G. B. M., & Stoorvogel, J. J. (2022). Accounting for analytical and proximal soil sensing errors in digital soil mapping. *European Journal of Soil Science*, 73(2). https://doi.org/10.1111/ejss.13226
 - von Haden, A. C., Yang, W. H., & DeLucia, E. H. (2020). Soils' dirty little secret: depth-based comparisons can be inadequate for quantifying changes in soil organic carbon and other mineral soil properties. *Global Change Biology*, 26(7), 3759–3770. https://doi.org/10.1111/gcb.15124
 - Webster, R., & McBratney, A. B. (1989). On the Akaike Information Criterion for choosing models for variograms of soil properties. *Journal of Soil Science*, 40(3), 493–496. https://doi.org/10.1111/j.1365-2389.1989.tb01291.x
