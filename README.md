@@ -39,9 +39,10 @@ Mittleren Westen der USA (Potash et al., 2023); die Kovarianzmodelle werden
 per REML geschätzt, Geländeparameter aus USGS-3DEP-Höhendaten dienen als
 Kovariaten. In dreimal wiederholter zehnfacher Kreuzvalidierung halten die
 90-%-Intervalle des bayesschen Krigings an jedem Feld 88 bis 91 % der
-zurückgehaltenen Vorräte; im CRPS schneidet es an sieben von acht Feldern
-besser ab als der hier trainierte Quantile Regression Forest, an fünf, wenn
-das Mittelwertmodell vorab festgelegt wird. Der mittlere Vorrat je Feld, per
+zurückgehaltenen Vorräte. Wird das Mittelwertmodell ohne die jeweils
+zurückgehaltenen Daten gewählt, schneidet es im CRPS an sechs von acht
+Feldern besser ab als der hier trainierte Quantile Regression Forest; ein
+Random Forest mit gekrigten Residuen ist an vier Feldern besser. Der mittlere Vorrat je Feld, per
 bayesschem Block-Kriging geschätzt, liegt an sieben Feldern zwischen 50,8 und
 65,7 Mg C/ha; der niedrige Wert des achten (IL-BR, 21,8) stimmt mit der
 US-Bodenkarte (SSURGO) überein, die Bestätigung durch den Autor steht aus. Um eine
@@ -115,7 +116,7 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 - **Field means (Stage 5):** Bayesian block kriging of each field's mean,
   checked against a direct solve, a calibration simulation and R's gstat
   (Checkpoint 5, 5/5 rules).
-- **Tests and CI:** 250 unit tests, none of which makes a request, four of
+- **Tests and CI:** 253 unit tests, none of which makes a request, four of
   them redrawing the report's figures from their committed tables; CI on
   Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
   gstat check in R.
@@ -124,7 +125,8 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 *Addendum: result*)
 
 - The selected kriging's 90 % intervals hold 88 to 91 % of the held-out
-  stocks at every field. Its mean squared deviation ratio (MSDR), 1.06 over
+  stocks at every field (84 to 91 % with the model chosen without the
+  held-out fold). Its mean squared deviation ratio (MSDR), 1.06 over
   the eight fields against plug-in kriging's 1.11, shows its variance about
   right where the plug-in's is too small; carrying the parameters'
   uncertainty widens the predictive variance by 2 to 12 %.
@@ -133,11 +135,13 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   2 % of the field's own distribution of stocks. Terrain as an external
   drift is selected at four fields of eight.
 - Against this repository's two forests, trained across the fields on
-  coordinates and terrain: the selected kriging has a lower CRPS than the
-  quantile forest at seven fields, two of them by less than 0.4 %, and at
-  five if each field's mean model is fixed beforehand, since the selection
-  used the same cross-validation (review, M1). The forest with kriged
-  residuals does better at three fields.
+  coordinates and terrain, with each held-out fold's mean model chosen on
+  the other folds' scores (review, M1; RUNBOOK, Stage 4, *Addendum* on M1):
+  kriging has the lower CRPS than the quantile forest at six fields and the
+  higher at two; against the forest with kriged residuals it is lower at
+  three, within 1 % at one and higher at four. Choosing the mean model on
+  the reported scores, as v1.0 did, had flattered kriging by up to 9 % of
+  CRPS (IL-MC).
 
   ![Calibration: the share of held-out stocks below each predictive quantile, for Bayesian kriging, plug-in kriging and the quantile regression forest, the eight fields pooled and each field's departure from the 1:1 line](docs/figures/calibration.png)
 

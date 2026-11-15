@@ -53,10 +53,12 @@ at the small ones.
 What a map adds varies by field. Kriging's modelling efficiency runs from
 −0.04 at IL-BR to 0.57 at IL-RT, and at IL-BR and IL-DG it scores within 2 %
 of the field's own distribution of stocks: there, a map adds almost nothing
-to the field's mean. The selected kriging has a lower CRPS than the quantile
-forest at seven fields, two of them by less than 0.4 %; with each field's
-mean model fixed beforehand, at five, since the model was selected on the
-same cross-validation. The forests here are trained across the fields on
+to the field's mean. In v1.0 each field's mean model was selected on the
+same cross-validation that scores it, which flattered kriging by up to 9 %
+of CRPS. Chosen for each held-out fold on the other folds' scores, kriging
+has a lower CRPS than the quantile forest at six fields of eight; against
+the forest with kriged residuals it is lower at three, within 1 % at one
+and higher at four. Its pooled MSDR is then 1.09. The forests here are trained across the fields on
 coordinates and terrain only, so this compares kriging with these forests,
 not with machine learning in general.
 

@@ -38,7 +38,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M5: a plausibility flag for all eight fields (Q1–Q5); IL-BR's low level is its carbon content's, not its bulk density's; the question to the dataset's author drafted | Stage 1, *Addendum*; `src/checks/plausibility.py` |
 | 15.11.2026 | M5: IL-BR against SSURGO (U1–U5): consistent with the soil survey, which itself expects IL-BR to hold a third of the other Illinois fields' carbon | Stage 1, *Addendum* on the soil survey; `src/ingest/sda_client.py`, `src/checks/ssurgo.py` |
 | 15.11.2026 | M5: the question on IL-BR and on Table 1's sample sizes sent to the dataset's corresponding author by email | — |
-| open | M1–M4 and m4, as addenda to Stages 4 and 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
+| open | M2–M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -1753,6 +1754,45 @@ every prediction is one the cross-validation of 8 November recorded.*
 | N3 wins and ties | For the kriging of N1 against QRF and against RF-RK, per field: a win, a tie or a loss, a tie being a difference in CRPS below 1 % of the larger of the two. The README and the report state the counts N3 gives, in place of "seven of eight" | The review asked for small differences to be called ties |
 | N4 stability | Per field, how many of the 30 (repeat, fold) pairs choose each of (a), (b) and (c) | A selection that changes from fold to fold is weak evidence for any one model |
 
+    python -m src.transform.nested
+
+**Result, 15 November 2026.** CRPS in Mg C/ha, per repeat and averaged; D5's
+column reproduces Stage 4's table exactly:
+
+| Field | (a) | (b) | (c) | D5, selected on all folds | **N1, without the fold** | QRF | RF-RK | N3 against QRF / RF-RK |
+|---|---|---|---|---|---|---|---|---|
+| IL-BR | 2.149 | 2.160 | 2.272 | 2.149 | **2.247** | 2.630 | 2.085 | win / loss |
+| IL-DG | 4.377 | 4.577 | 4.286 | 4.286 | **4.384** | 4.301 | 4.333 | loss / loss |
+| IL-MC | 3.504 | 3.438 | 3.511 | 3.438 | **3.753** | 3.926 | 3.168 | win / loss |
+| IL-PT | 4.142 | 4.412 | 3.992 | 3.992 | **3.992** | 4.153 | 4.147 | win / win |
+| IL-RD | 7.038 | 7.055 | 6.919 | 6.919 | **7.083** | 6.453 | 6.465 | loss / loss |
+| IL-RS | 7.112 | 7.158 | 6.256 | 6.256 | **6.256** | 6.702 | 6.352 | win / win |
+| IL-RT | 6.324 | 6.328 | 6.362 | 6.324 | **6.409** | 6.673 | 6.455 | win / tie |
+| NE | 2.745 | 2.737 | 2.835 | 2.737 | **2.769** | 3.643 | 2.823 | win / win |
+
+- **N3: against QRF, 6 wins and 2 losses; against RF-RK, 3 wins, 1 tie and
+  4 losses.** v1.0 said "better than the quantile forest at seven fields and
+  better than the forest with kriged residuals at five". Under N3's rule
+  IL-DG, a win by 0.35 % in v1.0, is now a loss by 1.9 %; and RF-RK is the
+  better method at IL-BR, IL-DG, IL-MC and IL-RD.
+- **The selection's optimism.** N1's kriging scores worse than D5's at six
+  fields, by up to 9.2 % (IL-MC, 3.753 against 3.438); at IL-PT and IL-RS,
+  where every fold chooses (c), not at all.
+- **N4: the choice is stable at three fields and not at the others.** (c)
+  in 30 of 30 pairs at IL-PT and IL-RS and 26 at IL-RD; at IL-RT 9, 12 and 9
+  for (a), (b) and (c); at IL-DG 21 (c) and 9 (a); at IL-MC 21 (b); at NE
+  20 (b) and 10 (a); at IL-BR 19 (a) and 11 (b). Where it moves, the three
+  models score within a few per cent of each other, and no one of them is
+  established.
+- **N2: calibration holds.** Pooled, QCP departs from its level by at most
+  0.025 (D5's: 0.028) and MSDR is 1.09 (D5's: 1.06). PICP at 90 % runs from
+  0.840 (IL-MC) to 0.908 per field, against 0.884–0.909 under D5; MEC from
+  −0.13 (IL-BR) to 0.56 (IL-RT).
+- Stage 5 krigs with D5's models, which stay: a field mean needs one model,
+  and N4 shows that where the choice moves the candidates score alike. The
+  RUNBOOK's Stage 5 already reports the runner-up's mean at IL-RT and NE,
+  within 0.06 Mg C/ha.
+
 ### References for Stage 4
 
 - Behrens, T., Zhu, A.-X., Schmidt, K., et al. (2010). Multi-scale digital terrain analysis and feature selection for digital soil mapping. *Geoderma*, 155(3–4), 175–185. https://doi.org/10.1016/j.geoderma.2009.07.010
@@ -1792,8 +1832,8 @@ every prediction is one the cross-validation of 8 November recorded.*
 - Taghizadeh-Mehrjardi, R., Kerry, R., Ingram, B., et al. (2025). Mapping soil volumetric water content at multiple depths for variable rate irrigation using UAV and yield monitor data with random forests. *Soil Use and Management*, 41(4). https://doi.org/10.1111/sum.70156
 - Vaysse, K., & Lagacherie, P. (2017). Using quantile regression forest to estimate uncertainty of digital soil mapping products. *Geoderma*, 291, 55–64. https://doi.org/10.1016/j.geoderma.2016.12.017
 - Voltz, M., & Webster, R. (1990). A comparison of kriging, cubic splines and classification for predicting soil properties from sample information. *Journal of Soil Science*, 41(3), 473–490. https://doi.org/10.1111/j.1365-2389.1990.tb00080.x
-- Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
 - Varma, S., & Simon, R. (2006). Bias in error estimation when using cross-validation for model selection. *BMC Bioinformatics*, 7, 91. https://doi.org/10.1186/1471-2105-7-91
+- Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
 
 ---
 
