@@ -244,6 +244,33 @@ and their sample means (Mg C/ha):
   analysis rather than the published locations. It goes into the same
   question to the author.
 
+### Addendum (review of v1.0, M5): IL-BR against the soil survey
+
+*Rules fixed 15 November 2026, before `src/ingest/sda_client.py` is written
+or any SSURGO data is pulled. The question to the dataset's author answers
+what only the author can (units, basis, sample counts); this asks what an
+independent source says about the level, for all eight fields alike, so that
+IL-BR is judged by how well the soil survey matches the other seven.*
+
+| Rule | What | Why |
+|---|---|---|
+| U1 source | SSURGO, the USDA–NRCS soil survey, read from Soil Data Access (SDA, `https://sdmdataaccess.sc.egov.usda.gov/Tabular/post.rest`), public domain. Per field: the map-unit polygons intersecting the bounding box of its locations widened by 0.001° (about 100 m), with their geometry. For those map units: every component's `comppct_r`, and every horizon's top and bottom depths (`hzdept_r`, `hzdepb_r`), organic matter (`om_l`, `om_r`, `om_h`, %) and bulk density at ⅓ bar (`dbthirdbar_r`); and each survey area's `saverest`, the date its data were last saved. Every response is stored write-once under `raw/SDA/` with a manifest row, as Stage 1's clients do | Potash et al. (2023) took IL-BR's texture from SSURGO (Table 1); it is the survey the field was mapped in |
+| U2 expected SOC | For each component, the organic carbon in 0–30 cm: the thickness-weighted mean of `om_r` over the parts of its horizons above 30 cm, times 0.58; for each map unit, the mean over its components weighted by `comppct_r`, over the components with `om_r` (their weights renormalised). The same from `om_l` and `om_h` gives a low and a high | 0.58 is the conventional factor from organic matter to organic carbon; it varies between soils and is often too low (Pribyl 2010), which is why U4 compares fields by a ratio, in which a common factor cancels |
+| U3 the comparison | Each of the 1,163 locations with a stock takes the map unit whose polygon contains it. A field's SSURGO expectation is the mean of its locations' expected SOC; its observed value the mean, over the same locations, of the thickness-weighted SOCc in 0–30 cm. Reported per field: both, their ratio (observed / SSURGO), and whether the observed mean lies between the means of the low and the high. The stock from `dbthirdbar_r` is reported beside it, not judged | The carbon concentration is compared because it is what is low at IL-BR; the bulk density is already examined by Q1–Q3 |
+| U4 IL-BR's verdict | IL-BR is **consistent with the soil survey** if its ratio lies within the range of the other seven fields' ratios, and **inconsistent** otherwise. Consistent: the README says IL-BR's low level agrees with SSURGO's map units. Inconsistent: the README says it does not, and IL-BR stays out of the headline range until the author answers. Fixed before the pull | Judging IL-BR by the other seven fields' agreement with the same survey allows for SSURGO's own bias and for the factor of U2 |
+| U5 not done | The NRCS laboratory pedons (the Kellogg Soil Survey Laboratory database), which SDA does not serve, are not used here | Stated rather than left out silently |
+
+**Where to run the pull.** The environment this repository is written in
+cannot reach SDA (its egress proxy answers 403); run
+`python -m src.ingest.sda_client` where it is reachable, as Stage 1's pulls
+were, then `python -m src.checks.ssurgo`.
+
+### References for the Stage 1 addenda
+
+- Potash, E., Guan, K., Margenot, A. J., et al. (2023). Multi-site evaluation of stratified and balanced sampling of soil organic carbon stocks in agricultural fields. *Geoderma*, 438, 116587. https://doi.org/10.1016/j.geoderma.2023.116587 (Table 1 and Sections 2.1–2.3, read 15 November 2026)
+- Pribyl, D. W. (2010). A critical review of the conventional SOC to SOM conversion factor. *Geoderma*, 156(3–4), 75–83. https://doi.org/10.1016/j.geoderma.2010.02.003
+- Soil Survey Staff, Natural Resources Conservation Service, United States Department of Agriculture. Soil Survey Geographic (SSURGO) Database, through Soil Data Access. https://sdmdataaccess.sc.egov.usda.gov
+
 ---
 
 ## Stage 2: stocks in 0–30 cm and covariance models (Potash fields)
