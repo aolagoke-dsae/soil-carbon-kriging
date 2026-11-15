@@ -27,7 +27,9 @@ against RF-RK 3 wins, 1 tie and 4 losses. M2 addressed the same day
 (RUNBOOK, Stage 5, *Addendum* on M2): the field means are robust to the
 bound. M3 addressed the same day (RUNBOOK, Stage 5, *Addendum* on M3):
 held-out halves support the narrower intervals, pooled, though not at IL-DG
-and IL-RD. M4 and m4 are to enter the RUNBOOK as
+and IL-RD. M4 addressed the same day (RUNBOOK, Stage 5, *Addendum* on
+M4): most of the reduction in samples is the grid's, not kriging's. m4 is
+to enter the RUNBOOK as
 dated addenda with rules fixed before they run, as Stage 4's did; this file
 records what was found, and the RUNBOOK records what was done about it.
 

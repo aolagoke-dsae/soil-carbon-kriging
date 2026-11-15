@@ -47,8 +47,10 @@ bayesschem Block-Kriging geschätzt, liegt an sieben Feldern zwischen 50,8 und
 65,7 Mg C/ha; der niedrige Wert des achten (IL-BR, 21,8) stimmt mit der
 US-Bodenkarte (SSURGO) überein, die Bestätigung durch den Autor steht aus. Um eine
 Änderung von 10 % des Mittels zwischen zwei Beprobungen nachzuweisen, genügen
-auf einem Raster mit Block-Kriging 13 bis 52 Proben, sofern das angepasste
-Modell weiter gilt, statt 25 bis 103 bei einfacher Zufallsstichprobe. Die Regeln jeder Stufe werden per
+statt 25 bis 103 Proben bei einfacher Zufallsstichprobe 13 bis 65 auf einem
+Raster mit dem Stichprobenmittel und 13 bis 52 mit Block-Kriging, sofern das
+angepasste Modell weiter gilt; der größte Teil des Gewinns kommt vom Raster
+selbst. Die Regeln jeder Stufe werden per
 Commit festgelegt, bevor ihre Daten verwendet werden; die Übertragung auf die
 Bodenzustandserhebung Landwirtschaft (BZE-LW) des Thünen-Instituts folgt als
 Stufe 6.
@@ -116,7 +118,7 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 - **Field means (Stage 5):** Bayesian block kriging of each field's mean,
   checked against a direct solve, a calibration simulation and R's gstat
   (Checkpoint 5, 5/5 rules).
-- **Tests and CI:** 260 unit tests, none of which makes a request, four of
+- **Tests and CI:** 263 unit tests, none of which makes a request, four of
   them redrawing the report's figures from their committed tables; CI on
   Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
   gstat check in R.
@@ -163,11 +165,15 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   intervals score no better (review, M3). Tripling the prior's upper bound on the
   correlation range moves the three most exposed field means by at most
   0.003 Mg C/ha (review, M2).
-- To detect a change of 10 % of the mean between two campaigns, 13 to 52
-  samples on a grid with block kriging suffice if the fitted model carries
-  over to the next campaign, against 25 to 103 by simple random sampling
-  with the sample mean. These are fixed-depth stocks; monitoring change
-  would compare them on an equivalent soil mass.
+- To detect a change of 10 % of the mean between two campaigns: 25 to 103
+  samples by simple random sampling with the sample mean, 13 to 65 on a
+  square grid with the sample mean, and 13 to 52 on the grid with block
+  kriging, if the fitted model carries over to the next campaign. Most of
+  the reduction comes from the grid itself (IL-RT: 103, 46, 43); kriging
+  adds most where terrain drives the mean (IL-RS: 87, 65, 52), and nothing,
+  or one or two samples more, at IL-BR, IL-DG and IL-MC (review, M4). These are
+  fixed-depth stocks; monitoring change would compare them on an equivalent
+  soil mass.
 
   ![The smallest detectable change in each field's mean stock against the number of samples per campaign, for fixed-depth stocks, under the fitted models](docs/figures/detectable_change.png)
 

@@ -98,9 +98,14 @@ carbon. The dataset's author is being asked to confirm it.
 ## How many samples?
 
 To detect a change of 10 % of the mean stock between two independent
-campaigns (80 % power, 5 % level), 13 to 52 samples per field on a square
-grid suffice under the fitted models, against 25 to 103 by simple random
-sampling; for 5 %, 32 to 170 against 97 to 410. These are planning figures
+campaigns (80 % power, 5 % level) under the fitted models: 25 to 103
+samples per field by simple random sampling with the sample mean, 13 to 65
+on a square grid with the sample mean, and 13 to 52 on the grid with block
+kriging; for 5 %, 97 to 410, 38 to 345 and 32 to 170. Most of the reduction
+comes from the grid itself: at IL-RT, 103, 46 and 43. Kriging adds most
+where terrain drives the mean, at IL-RS (87, 65, 52) and, for the smaller
+change, at IL-RD, where the grid's plain mean is biased by terrain it does
+not sample evenly (301, 345, 169). These are planning figures
 for fixed-depth stocks: monitoring change would use an equivalent soil
 mass, and revisiting the same locations would need fewer. The grid figures
 use block kriging and assume that the fitted model carries over to the next

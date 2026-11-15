@@ -41,7 +41,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
 | 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
-| open | M4 (rules fixed 15.11.2026) and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | M4: the grid with the sample mean (G1–G4): for an MDC of 10 %, 25–103 samples by random sampling, 13–65 by the grid's mean, 13–52 by the grid with kriging; most of the reduction is the grid's | Stage 5, *Addendum* on M4; `src/transform/grid_mean.py` |
+| open | m4, an independent check of REML in R; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2129,6 +2130,43 @@ estimator (`docs/REVIEW_V1.md`, M4). These rules add the missing case.*
 | G2 reported | Per field, the n at which the 95 % interval's half-width falls to 5 % of the mean and the MDC to 10 % and 5 % of it, as D4 and D5 compute them, for three cases: simple random sampling with the sample mean (D4), **the grid with the sample mean (G1)**, and the grid with block kriging (D4) | The gain from the design is the first against the second; the gain from the estimator, the second against the third |
 | G3 a check | With a constant mean and all the variance in the nugget (τ = 1), G1 equals D4's simple random sampling, D² / n, to 10⁻¹² (a unit test) | Without spatial correlation, where the points lie cannot matter |
 | G4 the claims | The README and the report give the three cases and say which part of the reduction in n comes from the grid and which from kriging | The review's M4 |
+
+    python -m src.transform.grid_mean --budget 150
+
+**Result, 15 November 2026.** One run, after the cross pairs between the
+grid's points and the cells were binned as D2 bins the cells' own (5 cm), so
+that IL-RT's Matérn steps fit in one command. Samples per campaign: simple
+random sampling with the sample mean / the grid with the sample mean / the
+grid with block kriging:
+
+| Field | 95 % interval within ±5 % | MDC 10 % of the mean | MDC 5 % of the mean | Largest share of the grid mean's error from its bias |
+|---|---|---|---|---|
+| IL-BR (a) | 50 / 41 / 41 | 51 / 42 / 42 | 202 / 153 / 152 | 0.00 |
+| IL-DG (c) | 32 / 24 / 25 | 32 / 24 / 26 | 128 / 100 / 89 | 0.51 |
+| IL-MC (b) | 29 / 17 / 17 | 29 / 17 / 18 | 116 / 50 / 55 | 0.11 |
+| IL-PT (c) | 24 / 25 / 20 | 25 / 25 / 21 | 97 / 67 / 66 | 0.41 |
+| IL-RD (c) | 74 / 47 / 46 | 76 / 47 / 47 | 301 / 345 / 169 | 0.81 |
+| IL-RS (c) | 85 / 64 / 51 | 87 / 65 / 52 | 345 / 196 / 170 | 0.58 |
+| IL-RT (a) | 101 / 45 / 42 | 103 / 46 / 43 | 410 / 164 / 140 | 0.00 |
+| NE (b) | 25 / 13 / 13 | 26 / 13 / 13 | 101 / 38 / 32 | 0.39 |
+
+- **Most of D4's reduction is the grid's, not kriging's.** For an MDC of 10
+  %, the grid with its plain mean needs 13 to 65 samples against random
+  sampling's 25 to 103; kriging takes that to 13 to 52. At IL-RT, where
+  the stocks are most strongly correlated, 103 becomes 46 by the grid and
+  43 by kriging.
+- **Kriging adds most where terrain drives the mean.** At IL-RS (87, 65,
+  52) and IL-PT (25, 25, 21), and for the 5 % change at IL-RD, where the
+  grid's plain mean is biased by terrain it does not sample evenly: its
+  error stops shrinking with n, and it needs more samples than random
+  sampling (345 against 301), kriging 169. The bias depends on where the
+  grid falls, so it is this grid's, not every grid's.
+- **Elsewhere kriging adds little, or costs.** At IL-BR the two grid cases
+  agree; at IL-RT, a constant mean with strongly correlated stocks, kriging
+  saves 3 samples for the 10 % change and 24 for 5 %. At IL-DG and IL-MC it
+  needs one or two more for the 10 % change, and at IL-MC five more for 5 %:
+  its mean's coefficients cost more than they recover. At NE the two agree
+  for 10 % and kriging saves 6 for 5 %.
 
 ### References for Stage 5
 
