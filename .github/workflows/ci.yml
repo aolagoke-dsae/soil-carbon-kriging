@@ -52,7 +52,7 @@ jobs:
         run: python -m pytest -q
 
   gstat:
-    name: rule G1, gstat in R
+    name: rules G1 and L1, gstat and nlme in R
     # RUNBOOK, Stage 5, D7: gstat krigs IL-RT's cells and field mean from
     # tests/fixtures/gstat_IL-RT.json, and this repository's code the same.
     runs-on: ubuntu-24.04
@@ -62,7 +62,10 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends r-base-core r-cran-gstat r-cran-sp r-cran-jsonlite
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends r-base-core r-cran-gstat r-cran-sp r-cran-jsonlite r-cran-nlme
       - run: pip install -r requirements-lock.txt
       - name: G1
         run: python -m src.checks.gstat
+      # RUNBOOK, Stage 2, Addendum on m4: the REML criterion against nlme
+      - name: L1
+        run: python -m src.checks.nlme

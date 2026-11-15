@@ -103,7 +103,8 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   simulated fields, with 95 % profile-likelihood intervals, the pooling test for the small fields,
   a Box-Cox profile per field and a geometric-anisotropy check; the
   gstat-style moment baseline beside them, checked against GSTools
-  (Checkpoint 2, 9/9 rules).
+  (Checkpoint 2, 9/9 rules); the REML criterion checked against R's nlme
+  within 4 × 10⁻¹² (review, m4).
 - **Terrain (Stage 3):** slope, mean curvature and TPI at three scales and
   TWI at all 1,163 locations, from five USGS 3DEP tiles, checked against
   GDAL, direct least-squares fits, scikit-image and a sparse linear solve
@@ -118,10 +119,10 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 - **Field means (Stage 5):** Bayesian block kriging of each field's mean,
   checked against a direct solve, a calibration simulation and R's gstat
   (Checkpoint 5, 5/5 rules).
-- **Tests and CI:** 263 unit tests, none of which makes a request, four of
+- **Tests and CI:** 266 unit tests, none of which makes a request, four of
   them redrawing the report's figures from their committed tables; CI on
   Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
-  gstat check in R.
+  gstat and nlme checks in R.
 
 **What Stage 4 found** ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result* and
 *Addendum: result*)
@@ -190,4 +191,5 @@ Code: MIT ([`LICENSE`](LICENSE)). Data: CC BY 4.0, from the sources above,
 attributed as their publishers ask in [`config/sources.csv`](config/sources.csv).
 
 To cite this repository: [`CITATION.cff`](CITATION.cff), shown by GitHub as
-*Cite this repository*; the release is v1.0 (Stages 1 to 5).
+*Cite this repository*; the release is v1.1 (Stages 1 to 5, revised after
+the review of v1.0).

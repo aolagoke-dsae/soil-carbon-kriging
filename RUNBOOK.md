@@ -42,7 +42,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
 | 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
 | 15.11.2026 | M4: the grid with the sample mean (G1–G4): for an MDC of 10 %, 25–103 samples by random sampling, 13–65 by the grid's mean, 13–52 by the grid with kriging; most of the reduction is the grid's | Stage 5, *Addendum* on M4; `src/transform/grid_mean.py` |
-| open | m4 (rules fixed 15.11.2026), an independent check of REML in R; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 15.11.2026 | m4: the REML criterion against R's nlme (L1–L3): PASS, differences within 4 × 10⁻¹² at 144 parameter sets; nlme's estimates equal this repository's at the four large fields; the check joins CI's R job | Stage 2, *Addendum* on m4; `src/checks/nlme.py` |
+| open | the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -746,6 +747,30 @@ implementation in this repository (`docs/REVIEW_V1.md`, m4).*
 | L1 the criterion | At all eight fields, under the constant mean and the quadratic trend, with the exponential family, at nine parameter sets (effective range 50, 200 and 800 m; nugget ratio 0.1, 0.4 and 0.7): the restricted log-likelihood maximised over the sill, `reml.reml_profile`, against `nlme::gls(method = "REML")` with `corExp(form = ~ x + y, nugget = TRUE)` held fixed at the same values (range a / ln 20) and this repository's design matrix as the fixed effects. Passes when, at every field and mean model, the nine differences from the first parameter set agree within 10⁻⁶; the offset between the two criteria is reported | nlme is R's reference implementation of generalised least squares by REML (Pinheiro & Bates 2000). Differences between parameter sets are what the fits and the profile intervals use; a constant offset, such as a different treatment of log|X′X|, would change neither |
 | L2 the estimates | At the four large fields under the constant mean: nlme's unconstrained REML estimates of the effective range and the nugget ratio for the exponential, beside this repository's (`reml.fit`, the same family). Reported, not judged | Two optimisers on a flat likelihood can stop apart; L1 is the test, L2 shows how far |
 | L3 where it runs | The fixture `tests/fixtures/reml_fields.json` (the stocks as Stage 2 computed them, CC BY 4.0, coordinates in metres from each field's centroid) is written from `curated/`; the check runs from it wherever R and nlme are, and in CI's R job | As G1 runs from its fixture |
+
+    python -m src.checks.nlme --write     (where curated/ is)
+    python -m src.checks.nlme             (where R and nlme are)
+
+**Result, 15 November 2026.** Run with R 4.3.3 and nlme 3.1.164:
+
+```text
+PASS  L1 REML against nlme: R version 4.3.3 (2024-02-29), nlme 3.1.164: 8 fields x 2 mean models x 9 parameter sets; differences from the first set agree within 4.0e-12 (rule: 1e-06); offset between the criteria -2.756714 to 5.268970
+      L2 IL-RD: effective range 159 m here, 159 m in nlme; nugget ratio 0.493 here, 0.493 in nlme
+      L2 IL-RS: effective range 180 m here, 180 m in nlme; nugget ratio 0.366 here, 0.366 in nlme
+      L2 IL-RT: effective range 435 m here, 436 m in nlme; nugget ratio 0.153 here, 0.153 in nlme
+      L2 NE: effective range 129 m here, 129 m in nlme; nugget ratio 0.000 here, 0.000 in nlme
+```
+
+- **L1: PASS.** At 144 parameter sets nlme's REML criterion differs from
+  this repository's by a constant per field and mean model, and the
+  differences agree within 4 × 10⁻¹². The constant changes with the design
+  matrix, as a different treatment of log|X′X| would; it moves no estimate
+  and no interval.
+- **L2:** nlme's unconstrained estimates equal this repository's at the four
+  large fields, to the metre and the third decimal of the nugget ratio.
+- The first run of the R script failed before any comparison: `fromJSON`
+  turned the list of fields into a data frame. It now reads the input as
+  lists; the rule was not changed.
 
 ### References for Stage 2
 
