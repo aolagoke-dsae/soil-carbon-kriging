@@ -41,7 +41,7 @@ with its rules fixed first, says so.
 | 15.11.2026 | M1: each fold's mean model chosen on the other folds' scores (N1–N4): against QRF 6 wins and 2 losses, against RF-RK 3 wins, 1 tie and 4 losses; the selection had flattered kriging by up to 9 % of CRPS; README, report and summary corrected | Stage 4, *Addendum* on M1; `src/transform/nested.py` |
 | 15.11.2026 | M2: the field means at IL-DG, IL-MC and IL-RT with the range's upper bound doubled and tripled (W1–W4): robust, the means moving by at most 0.003 Mg C/ha and the widths by under 1 % | Stage 5, *Addendum* on M2; `src/transform/range_bound.py` |
 | 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
-| open | M4 and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| open | M4 (rules fixed 15.11.2026) and m4, as addenda to Stage 5; the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -2115,6 +2115,20 @@ width of the 95 % interval (Mg C/ha), kriging / sample mean:
   sample observes, and the halves are smaller than the full samples Stage 5
   krigs from, so the full-sample intervals are narrower still. The 40
   predictions per field overlap, so the coverages are descriptive.
+
+### Addendum (review of v1.0, M4): the grid with the sample mean
+
+*Rules fixed 15 November 2026, before `src/transform/grid_mean.py` is
+written or run. D4 set a square grid with block kriging beside simple random
+sampling with the sample mean, so its gain mixed the design with the
+estimator (`docs/REVIEW_V1.md`, M4). These rules add the missing case.*
+
+| Rule | What | Why |
+|---|---|---|
+| G1 the grid's sample mean | For D4's planning grids (the same points for each n) and the same posterior points carrying 99.9 % of the weight: the model-expected squared error of the grid's sample mean as an estimate of the field mean, E[σ² given θ] {(1 − τ)(R̄_ss − 2 R̄_sB + R̄_BB) + τ / n} + ((x̄_s − x̄_B)′ β̂(θ))², averaged over the posterior; R̄ the mean correlation among the grid's points (s), between them and the field's cells (B), and among the cells (D2's histogram), β̂(θ) the GLS coefficients from all the field's stocks at θ | The model-based variance of a design-based estimator, which separates a design's effect from an estimator's (Brus & de Gruijter 1997). The second term is the sample mean's bias where the mean model has a trend the grid does not sample evenly |
+| G2 reported | Per field, the n at which the 95 % interval's half-width falls to 5 % of the mean and the MDC to 10 % and 5 % of it, as D4 and D5 compute them, for three cases: simple random sampling with the sample mean (D4), **the grid with the sample mean (G1)**, and the grid with block kriging (D4) | The gain from the design is the first against the second; the gain from the estimator, the second against the third |
+| G3 a check | With a constant mean and all the variance in the nugget (τ = 1), G1 equals D4's simple random sampling, D² / n, to 10⁻¹² (a unit test) | Without spatial correlation, where the points lie cannot matter |
+| G4 the claims | The README and the report give the three cases and say which part of the reduction in n comes from the grid and which from kriging | The review's M4 |
 
 ### References for Stage 5
 
