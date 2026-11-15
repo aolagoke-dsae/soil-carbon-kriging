@@ -2265,7 +2265,7 @@ sources; run the clients where they are reachable, as Stage 1's pulls were:
 ```bash
 python -m src.ingest.dwd_client            # DWD: listings, then the two annual grids of the latest common period
 python -m src.ingest.bkg_client            # BKG: DGM200, checked against its published MD5
-python -m src.ingest.organic_client --discover   # Thünen Atlas: which layer is the map of organic soils
+python -m src.ingest.organic_client       # the map of organic soils, from its DOI on OpenAgrar
 ```
 
 What was read before writing them, on 15 November 2026: DWD's terms of use
@@ -2310,6 +2310,17 @@ The discovery now reads the map's record from the Atlas API and tries the
 endpoints the Atlas has used, before any rule depends on the layer. Stage
 1's stored pages are unaffected, but a fresh pull of them would fail the
 same way until the endpoint is found.
+
+**15.11.2026: the map of organic soils comes from its DOI instead.** The
+discovery found every Atlas address answering 404: its API
+(`/api/v2/maps/243`, which Stage 1 read on 5 November) and three WFS
+endpoints. The dataset's DOI, 10.3220/DATA20230510130443-0, resolves to its
+OpenAgrar record, which the author opened: CC BY 4.0, and among its files
+`Thuenen_Kulisse_OrgBoeden_v1.zip` (183.49 MB, dated 4 August 2023; "1
+GeoPackage" in the record's extent) and `README.txt`. The client now reads
+the landing page the DOI resolves to, stores it, and takes the README and
+the zip from its links, the zip accepted only if it holds a GeoPackage. D2's
+source is unchanged; only the way to it is.
 
 ### References for Stage 6
 

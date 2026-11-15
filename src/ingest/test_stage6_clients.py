@@ -144,3 +144,26 @@ def test_organic_layer_names_and_links_from_the_api_record():
            {"name": "basemap"}]}
     assert O.layer_names(doc) == ["geonode:kulisse_org", "geonode:kulisse_org"]
     assert O.walk_links(doc) == ["https://atlas.example/geoserver/ows?service=WFS"]
+
+
+def test_organic_finds_the_zip_on_the_landing_page_and_needs_a_geopackage():
+    html = ('<a href="/servlets/MCRFileNodeServlet/openagrar_derivate_00001/Thuenen_Kulisse_OrgBoeden_v1.zip">zip</a>'
+            '<a href="/servlets/MCRFileNodeServlet/openagrar_derivate_00001/README.txt">readme</a>'
+            '<a href="/other/Laenderdatensaetze.zip">x</a>')
+    links = O.file_links(html, "https://www.openagrar.de/receive/x")
+    assert links == {"Thuenen_Kulisse_OrgBoeden_v1.zip": "https://www.openagrar.de/servlets/MCRFileNodeServlet/"
+                     "openagrar_derivate_00001/Thuenen_Kulisse_OrgBoeden_v1.zip",
+                     "README.txt": "https://www.openagrar.de/servlets/MCRFileNodeServlet/openagrar_derivate_00001/README.txt"}
+    assert O.usable_zip(200, _zip("kulisse.gpkg")) and not O.usable_zip(200, _zip("kulisse.shp"))
+
+
+def test_organic_pull_stores_landing_readme_and_zip(monkeypatch, tmp_path):
+    root = _raw(monkeypatch, tmp_path, O)
+    base = "https://www.openagrar.de/servlets/MCRFileNodeServlet/d/"
+    html = f'<a href="{base}README.txt">r</a><a href="{base}Thuenen_Kulisse_OrgBoeden_v1.zip">z</a>'.encode()
+    server = Server({O.DOI: (200, html), base + "README.txt": (200, b"readme"),
+                     base + "Thuenen_Kulisse_OrgBoeden_v1.zip": (200, _zip("k.gpkg"))})
+    monkeypatch.setattr(O.http_get, "session", lambda: server)
+    rows = O.pull()
+    assert len(rows) == 3 and [r["rejected"] for r in _manifest(root)] == ["0"] * 3
+    assert O.pull() == []

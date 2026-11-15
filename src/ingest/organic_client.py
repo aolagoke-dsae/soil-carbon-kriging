@@ -10,6 +10,11 @@ feature types that can be it:
         at each endpoint the Atlas has used, and prints the layer names and
         the service and download links they give
 
+    python -m src.ingest.organic_client [--refresh]
+        the dataset itself, from its DOI on OpenAgrar: the landing page,
+        README.txt and Thuenen_Kulisse_OrgBoeden_v1.zip (a GeoPackage), the
+        zip accepted only if it holds a .gpkg
+
 On 15.11.2026 the WFS endpoint Stage 1 used, atlas.thuenen.de/geoserver/ows,
 answered GetCapabilities with HTTP 404 (RUNBOOK, Stage 6, If it fails).
 
@@ -66,12 +71,12 @@ def number_matched(xml: bytes) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _record(it: Path, url: str, status: int, body: bytes, accepted: bool, attempt: int) -> dict:
+def _record(it: Path, url: str, status: int, body: bytes, accepted: bool, attempt: int, revision: str = "") -> dict:
     now = _now()
     path = raw_store.store(it, body, accepted, now)
     row = {"retrieved_at_utc": now.isoformat(timespec="seconds"), "path": path.as_posix(), "url": url,
            "http_status": status, "bytes": len(body), "sha256": hashlib.sha256(body).hexdigest(),
-           "rejected": int(not accepted), "attempt": attempt, "revision": ""}
+           "rejected": int(not accepted), "attempt": attempt, "revision": revision}
     raw_store.append_manifest(MANIFEST, row)
     return row
 
@@ -138,7 +143,74 @@ def discover() -> list[dict]:
     return found
 
 
+# --- the dataset on OpenAgrar ------------------------------------------------------------------
+
+DOI = "https://doi.org/10.3220/DATA20230510130443-0"
+ZIP_NAME = "Thuenen_Kulisse_OrgBoeden_v1.zip"       # 183.49 MB, dated 2023-08-04 on the record
+README_NAME = "README.txt"
+
+
+def file_links(html: str, base: str) -> dict[str, str]:
+    """{file name: absolute URL} of the files a repository landing page links to."""
+    from urllib.parse import urljoin, unquote
+    out = {}
+    for href in re.findall(r'href="([^"]+)"', html):
+        name = unquote(href.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1])
+        if name in (ZIP_NAME, README_NAME):
+            out.setdefault(name, urljoin(base, href.replace("&amp;", "&")))
+    return out
+
+
+def usable_zip(status: int, body: bytes) -> bool:
+    """HTTP 200 and a zip that holds a GeoPackage."""
+    import io
+    import zipfile
+    if status != 200:
+        return False
+    try:
+        names = zipfile.ZipFile(io.BytesIO(body)).namelist()
+    except zipfile.BadZipFile:
+        return False
+    return any(n.lower().endswith(".gpkg") for n in names)
+
+
+def pull(refresh: bool = False) -> list[dict]:
+    """The DOI's landing page, then the README and the zip it links to."""
+    raw_store.check_manifest(MANIFEST)
+    if not refresh and raw_store.current_version(item(ZIP_NAME)):
+        return []
+    http = http_get.session()
+    rows = []
+    r, attempt = http_get.get(http, DOI)
+    links = file_links(r.content.decode("utf-8", "replace"), r.url) if r.status_code == 200 else {}
+    ok = ZIP_NAME in links
+    rows.append(_record(item("landing.html"), r.url, r.status_code, r.content, ok, attempt))
+    if not ok:
+        raise RuntimeError(f"the DOI's landing page (HTTP {r.status_code}) links no {ZIP_NAME}")
+    if README_NAME in links:
+        r, attempt = http_get.get(http, links[README_NAME])
+        rows.append(_record(item(README_NAME), links[README_NAME], r.status_code, r.content, r.status_code == 200,
+                            attempt))
+    r, attempt = http_get.get(http, links[ZIP_NAME])
+    ok = usable_zip(r.status_code, r.content)
+    rows.append(_record(item(ZIP_NAME), links[ZIP_NAME], r.status_code, r.content, ok, attempt, DOI))
+    if not ok:
+        raise RuntimeError(f"{ZIP_NAME} rejected (HTTP {r.status_code}, or no GeoPackage inside)")
+    return rows
+
+
 def main(argv: list[str]) -> int:
+    if argv in ([], ["--refresh"]):
+        try:
+            rows = pull(refresh=bool(argv))
+        except RuntimeError as e:
+            print(f"FAILED: {e}")
+            return 1
+        if not rows:
+            print(f"nothing to fetch: raw/ holds {ZIP_NAME}")
+        for r in rows:
+            print(f"HTTP {r['http_status']}  {r['bytes']:>10} bytes  {r['path']}")
+        return 0
     if argv != ["--discover"]:
         print(__doc__)
         return 2
