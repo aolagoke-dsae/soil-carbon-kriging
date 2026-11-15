@@ -1,15 +1,16 @@
 # Soil Carbon Kriging
 
-**Soil organic carbon mapped with its uncertainty, in Python.** Ordinary
-kriging and the kriging variance on field-scale carbon stocks from eight U.S.
-Midwest fields, then on Germany's agricultural soil inventory, whose published
-site locations are offset by up to 4 km for data protection.
+**Soil organic carbon mapped with its uncertainty, in Python.** Bayesian
+kriging of field-scale carbon stocks from eight U.S. Midwest fields, with the
+uncertainty of every prediction and of each field's mean. Germany's
+agricultural soil inventory, whose published site locations are offset by up
+to 4 km for data protection, is pulled and checked; its model is Stage 6.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
 ![IL-RT, one of the eight fields: the predicted soil organic carbon stock at 2,903 cells of 10 m beside its predictive standard deviation, with the 245 sampled locations](docs/figures/map_IL-RT.png)
 
-*IL-RT, one of the eight fields: the stock in 0–30 cm predicted at each 10 m cell by Bayesian kriging of 245 samples (dots), beside its uncertainty, lowest at the samples. In cross-validation the field's kriging has a modelling efficiency of 0.57, and its 90 % intervals hold 89.5 % of the held-out stocks.*
+*IL-RT, one of the eight fields: the stock in 0–30 cm predicted at each 10 m cell by Bayesian kriging of 245 samples (dots), beside its uncertainty, lowest at the samples. In cross-validation the field's kriging has a modelling efficiency of 0.57, and its 90 % intervals hold 89.5 % of the held-out stocks. IL-RT is shown because it is the field where kriging does best: across the eight fields the modelling efficiency runs from −0.04 to 0.57, and at IL-BR and IL-DG a map adds almost nothing to the field's mean.*
 
 > **Status: Stage 5 run (14.11.2026): each field's mean stock, with what it means for monitoring.**
 > The report: https://aolagoke-dsae.github.io/soil-carbon-kriging/
@@ -26,6 +27,8 @@ site locations are offset by up to 4 km for data protection.
 > ([`RUNBOOK.md`](RUNBOOK.md), Stages 2 to 5). Each stage's rules are fixed
 > by a commit before its data is touched; Stage 2's followed a review
 > against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
+> A pre-publication review of v1.0 ([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md),
+> 15.11.2026) is being worked through before Stage 6.
 
 ## Kurzfassung
 
@@ -36,12 +39,14 @@ Mittleren Westen der USA (Potash et al., 2023); die Kovarianzmodelle werden
 per REML geschätzt, Geländeparameter aus USGS-3DEP-Höhendaten dienen als
 Kovariaten. In dreimal wiederholter zehnfacher Kreuzvalidierung halten die
 90-%-Intervalle des bayesschen Krigings an jedem Feld 88 bis 91 % der
-zurückgehaltenen Vorräte, und im CRPS schneidet es an sieben von acht
-Feldern besser ab als ein Quantile Regression Forest. Der mittlere Vorrat je
-Feld, per bayesschem Block-Kriging geschätzt, liegt zwischen 21,8 und
-65,7 Mg C/ha; um eine Änderung von 10 % des Mittels zwischen zwei
-Beprobungen nachzuweisen, genügen auf einem Raster 13 bis 52 Proben statt 25
-bis 103 bei einfacher Zufallsstichprobe. Die Regeln jeder Stufe werden per
+zurückgehaltenen Vorräte; im CRPS schneidet es an sieben von acht Feldern
+besser ab als der hier trainierte Quantile Regression Forest, an fünf, wenn
+das Mittelwertmodell vorab festgelegt wird. Der mittlere Vorrat je Feld, per
+bayesschem Block-Kriging geschätzt, liegt an sieben Feldern zwischen 50,8 und
+65,7 Mg C/ha; der Wert des achten (IL-BR, 21,8) wird noch geprüft. Um eine
+Änderung von 10 % des Mittels zwischen zwei Beprobungen nachzuweisen, genügen
+auf einem Raster mit Block-Kriging 13 bis 52 Proben, sofern das angepasste
+Modell weiter gilt, statt 25 bis 103 bei einfacher Zufallsstichprobe. Die Regeln jeder Stufe werden per
 Commit festgelegt, bevor ihre Daten verwendet werden; die Übertragung auf die
 Bodenzustandserhebung Landwirtschaft (BZE-LW) des Thünen-Instituts folgt als
 Stufe 6.
@@ -81,61 +86,83 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 
 ## What is real
 
-- **Real:** two ingestion clients built on `requests` (retries, timeouts,
-  write-once storage, a manifest row per response); both datasets pulled and
-  checked against their sources (Checkpoint 1, 9/9 rules); the 0–30 cm stock
-  at 1,163 locations, checked against a second computation; REML for three
+**Built and checked**
+
+- **Ingestion:** three clients built on `requests` (figshare, the Thünen
+  Atlas WFS, and The National Map by HTTP range requests), with retries,
+  timeouts, write-once storage and a manifest row per response; both
+  datasets checked against their sources (Checkpoint 1, 9/9 rules).
+- **Stocks and covariance models (Stage 2):** the 0–30 cm stock at 1,163
+  locations, checked against a second computation; REML for three
   covariance families and two mean models, written in NumPy and SciPy, its
-  likelihood checked against scikit-learn's and its estimates on 50
-  simulated fields; the REML fits to all eight fields under both mean
-  models, with 95 % profile-likelihood intervals, the pooling test for the
-  small fields, a Box-Cox profile per field and a geometric-anisotropy check
-  for the large fields; the gstat-style moment baseline beside them, its
-  semivariances and fits checked against GSTools' (Checkpoint 2, 9/9
-  rules); a third client, which reads only the parts of five USGS tiles
-  under the fields by HTTP range requests, and from them slope and mean
-  curvature at three scales, TPI at three and TWI at all 1,163 locations,
-  checked against GDAL, direct least-squares fits, scikit-image and a
-  sparse linear solve (Checkpoint 3, 6/6 rules); Bayesian kriging in NumPy
-  and SciPy, its covariance parameters integrated over a grid inside Stage
-  2's bounds, under a constant mean, a quadratic trend and terrain as an
-  external drift chosen by AIC inside each training fold, with plug-in
-  kriging beside it; a quantile regression forest and a random forest with
-  kriged residuals, each trained across the eight fields; all of them
-  scored at every location by three repeats of ten-fold cross-validation on
-  the CRPS, PICP and QCP, and checked against the bordered kriging system,
-  explicit inverses, Stage 2's REML likelihood, a calibration simulation and
-  the trees' own leaves, and against GSTools, an independent geostatistics
-  library, which reproduces its kriging within 10⁻¹⁴; maps of the
-  predictive mean and standard deviation at every 10 m cell of the eight
-  fields, checked against the cross-validation's own predictive
-  (Checkpoint 4, 13/13 rules); each field's mean stock by Bayesian block
-  kriging, checked against a direct solve, a calibration simulation and R's
-  gstat (Checkpoint 5, 5/5 rules); 232 unit tests, none of which makes a
-  request; a CI workflow for Python 3.11 and 3.14 on Linux, 3.14 on Windows from
-  the lock file, and the gstat check in R.
-- **What Stage 4 found:** the selected kriging's 90 % intervals hold 88 to
-  91 % of the held-out stocks at every field; carrying the parameters'
-  uncertainty widens the predictive variance by 2 to 12 % against plug-in
-  kriging; terrain as an external drift is selected at four fields of eight;
-  the selected kriging scores better than the quantile regression forest at
-  seven fields and better than the forest with kriged residuals at five;
-  its mean squared deviation ratio (MSDR), 1.06 over the eight fields
-  against plug-in kriging's 1.11, shows its variance about right where the
-  plug-in's is too small ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result* and
-  *Addendum: result*).
+  Gaussian likelihood checked against scikit-learn's and its estimates on 50
+  simulated fields, with 95 % profile-likelihood intervals, the pooling test for the small fields,
+  a Box-Cox profile per field and a geometric-anisotropy check; the
+  gstat-style moment baseline beside them, checked against GSTools
+  (Checkpoint 2, 9/9 rules).
+- **Terrain (Stage 3):** slope, mean curvature and TPI at three scales and
+  TWI at all 1,163 locations, from five USGS 3DEP tiles, checked against
+  GDAL, direct least-squares fits, scikit-image and a sparse linear solve
+  (Checkpoint 3, 6/6 rules).
+- **Kriging and its benchmark (Stage 4):** Bayesian kriging with its
+  covariance parameters integrated over a grid, under a constant mean, a
+  quadratic trend and terrain as an external drift, plug-in kriging beside
+  it, a quantile regression forest and a forest with kriged residuals; all
+  scored at every location by three repeats of ten-fold cross-validation
+  (CRPS, PICP, QCP, MSDR); the kriging reproduced by GSTools within 10⁻¹⁴;
+  maps of all eight fields (Checkpoint 4, 13/13 rules).
+- **Field means (Stage 5):** Bayesian block kriging of each field's mean,
+  checked against a direct solve, a calibration simulation and R's gstat
+  (Checkpoint 5, 5/5 rules).
+- **Tests and CI:** 236 unit tests, none of which makes a request, four of
+  them redrawing the report's figures from their committed tables; CI on
+  Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
+  gstat check in R.
+
+**What Stage 4 found** ([`RUNBOOK.md`](RUNBOOK.md), Stage 4, *Result* and
+*Addendum: result*)
+
+- The selected kriging's 90 % intervals hold 88 to 91 % of the held-out
+  stocks at every field. Its mean squared deviation ratio (MSDR), 1.06 over
+  the eight fields against plug-in kriging's 1.11, shows its variance about
+  right where the plug-in's is too small; carrying the parameters'
+  uncertainty widens the predictive variance by 2 to 12 %.
+- What a map adds varies by field: the modelling efficiency runs from −0.04
+  at IL-BR to 0.57 at IL-RT, and at IL-BR and IL-DG kriging scores within
+  2 % of the field's own distribution of stocks. Terrain as an external
+  drift is selected at four fields of eight.
+- Against this repository's two forests, trained across the fields on
+  coordinates and terrain: the selected kriging has a lower CRPS than the
+  quantile forest at seven fields, two of them by less than 0.4 %, and at
+  five if each field's mean model is fixed beforehand, since the selection
+  used the same cross-validation (review, M1). The forest with kriged
+  residuals does better at three fields.
 
   ![Calibration: the share of held-out stocks below each predictive quantile, for Bayesian kriging, plug-in kriging and the quantile regression forest, the eight fields pooled and each field's departure from the 1:1 line](docs/figures/calibration.png)
-- **What Stage 5 found:** each field's mean stock in 0–30 cm, from 21.8 Mg
-  C/ha at IL-BR to 65.7 at IL-RD, agrees with its sample mean at every
-  field, with an interval up to 46 % narrower; to detect a change of 10 % of
-  the mean between two campaigns, 13 to 52 samples on a grid suffice under
-  the fitted models, against 25 to 103 by simple random sampling
-  ([`RUNBOOK.md`](RUNBOOK.md), Stage 5).
 
-  ![The smallest detectable change in each field's mean stock against the number of samples per campaign](docs/figures/detectable_change.png)
-- **Not yet:** the national-scale model for BZE-LW (Stage 6), which has no
-  rules yet.
+**What Stage 5 found** ([`RUNBOOK.md`](RUNBOOK.md), Stage 5)
+
+- Each field's mean stock in 0–30 cm lies between 50.8 and 65.7 Mg C/ha at
+  seven fields. IL-BR's, 21.8, is under review: its carbon contents and
+  bulk densities look implausible beside the other fields' (review, M5).
+- Block kriging and the sample mean agree at every field; the block-kriging
+  interval is 6 to 46 % narrower at seven fields and 2 % wider at IL-BR.
+  Both come from the same samples, so their agreement shows consistency,
+  not accuracy (review, M3).
+- To detect a change of 10 % of the mean between two campaigns, 13 to 52
+  samples on a grid with block kriging suffice if the fitted model carries
+  over to the next campaign, against 25 to 103 by simple random sampling
+  with the sample mean. These are fixed-depth stocks; monitoring change
+  would compare them on an equivalent soil mass.
+
+  ![The smallest detectable change in each field's mean stock against the number of samples per campaign, for fixed-depth stocks, under the fitted models](docs/figures/detectable_change.png)
+
+**Under review:** a pre-publication review of v1.0
+([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md)) found five major issues. They are
+addressed before Stage 6, as dated addenda with their rules fixed first.
+
+**Not yet:** the national-scale model for BZE-LW (Stage 6), which has no
+rules yet.
 
 ## Licence
 

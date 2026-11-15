@@ -8,6 +8,7 @@ attrs==26.1.0
     #   rasterio
 certifi==2026.10.23
     # via
+    #   pyogrio
     #   pyproj
     #   rasterio
     #   requests
@@ -26,8 +27,18 @@ cloudpickle==3.1.2
     # via joblib
 colorama==0.4.6 ; sys_platform == 'win32'
     # via pytest
+contourpy==1.3.3 ; python_full_version < '3.12'
+    # via matplotlib
+contourpy==1.4.0 ; python_full_version >= '3.12'
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
 emcee==3.1.6
     # via gstools
+fonttools==4.68.0
+    # via matplotlib
+geopandas==1.2.0
+    # via -r requirements.txt
 gstools==1.7.0
     # via -r requirements.txt
 gstools-cython==1.2.0
@@ -46,10 +57,14 @@ iniconfig==2.3.1
     # via pytest
 joblib==1.6.0
     # via scikit-learn
+kiwisolver==1.5.1
+    # via matplotlib
 lazy-loader==0.6
     # via scikit-image
 markdown-it-py==4.3.0
     # via rich
+matplotlib==3.11.2
+    # via -r requirements.txt
 mdurl==0.1.2
     # via markdown-it-py
 meshio==5.3.5
@@ -67,47 +82,63 @@ networkx==3.7 ; python_full_version >= '3.12'
 numpy==2.4.6 ; python_full_version < '3.12'
     # via
     #   -r requirements.txt
+    #   contourpy
     #   emcee
+    #   geopandas
     #   gstools
     #   gstools-cython
     #   hankel
     #   imagecodecs
     #   imageio
+    #   matplotlib
     #   meshio
     #   pandas
     #   pyevtk
+    #   pyogrio
     #   rasterio
     #   scikit-image
     #   scikit-learn
     #   scipy
+    #   shapely
     #   tifffile
 numpy==2.5.4 ; python_full_version >= '3.12'
     # via
     #   -r requirements.txt
+    #   contourpy
     #   emcee
+    #   geopandas
     #   gstools
     #   gstools-cython
     #   hankel
     #   imagecodecs
     #   imageio
+    #   matplotlib
     #   meshio
     #   pandas
     #   pyevtk
+    #   pyogrio
     #   rasterio
     #   scikit-image
     #   scikit-learn
     #   scipy
+    #   shapely
     #   tifffile
 packaging==26.3
     # via
+    #   geopandas
     #   lazy-loader
+    #   matplotlib
+    #   pyogrio
     #   pytest
     #   scikit-image
 pandas==3.1.1
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   geopandas
 pillow==13.0.0
     # via
     #   imageio
+    #   matplotlib
     #   scikit-image
 pluggy==1.7.0
     # via pytest
@@ -119,16 +150,26 @@ pygments==2.21.0
     # via
     #   pytest
     #   rich
+pyogrio==0.13.0
+    # via geopandas
 pyparsing==3.3.3
-    # via rasterio
+    # via
+    #   matplotlib
+    #   rasterio
 pyproj==3.7.2 ; python_full_version < '3.12'
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   geopandas
 pyproj==3.8.0 ; python_full_version >= '3.12'
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   geopandas
 pytest==9.2.0
     # via -r requirements.txt
 python-dateutil==4.0.0
-    # via pandas
+    # via
+    #   matplotlib
+    #   pandas
 rasterio==1.4.4 ; python_full_version < '3.12'
     # via -r requirements.txt
 rasterio==1.5.2 ; python_full_version >= '3.12'
@@ -155,6 +196,8 @@ scipy==1.18.1 ; python_full_version >= '3.12'
     #   hankel
     #   scikit-image
     #   scikit-learn
+shapely==2.2.0
+    # via geopandas
 threadpoolctl==3.8.0
     # via scikit-learn
 tifffile==2026.3.3 ; python_full_version < '3.12'

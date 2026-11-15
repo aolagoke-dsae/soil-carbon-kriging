@@ -24,6 +24,19 @@ written before its data is touched, once the stage before it has passed. The ord
 of Stages 3–6 and the machine-learning benchmark follow the review of the
 Stage 2 draft ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 
+## Review of v1.0
+
+A pre-publication review of release v1.0 ([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md),
+15.11.2026) found five major issues (M1–M5), six moderate (m1–m6) and five
+minor. Nothing in Stages 1–5 is rerun or changed by it until an addendum,
+with its rules fixed first, says so.
+
+| Date | Adopted | Where |
+|---|---|---|
+| 15.11.2026 | Wording: the README's first paragraph (Bayesian, not ordinary, kriging; BZE-LW pulled, not modelled); the range of MEC beside the IL-RT map (m1); the gstat discrepancy called unexplained (m3); "this forest", not machine learning (m5); the fixed-depth and carry-over caveats on the detectable change (m6, M4's wording); IL-BR's wider interval and IL-BR's level under review (M5's wording); the count of seven against five fields (M1's wording); the report's limits gain m2, M1 and M2. "What is real" in the README in bullets | README, `docs/index.qmd`, `detectable_change.png`'s subtitle |
+| 15.11.2026 | matplotlib and GeoPandas in `requirements.txt` and the lock file, which gains them and their dependencies and changes no other pin (`uv pip compile --universal --python-version 3.11`, without `--upgrade`); four unit tests redraw the report's figures from their committed tables, so CI now runs `figures.py`; 236 tests pass from the lock on Python 3.14 | `requirements.txt`, `requirements-lock.txt`, `src/report/test_figures.py` |
+| open | M1–M5 and m4, as addenda to Stages 1, 4 and 5; the spread of the scores over the three repeats (section 3) | — |
+
 ---
 
 ## Stage 1: pull both datasets

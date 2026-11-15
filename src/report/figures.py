@@ -10,7 +10,7 @@ curated tables alone.
                                         each field's selected mean model, and QRF
         docs/figures/calibration.csv    the values the calibration figure draws
 
-Needs requirements-figures.txt (matplotlib). The colours are the portfolio's
+Needs matplotlib (requirements.txt). The colours are the portfolio's
 data-visualisation palette: three categorical hues, checked for colour-vision
 deficiency, and one-hue sequential ramps for the maps.
 """
@@ -337,8 +337,8 @@ def draw_detectable_change(effort: pd.DataFrame, means: pd.DataFrame, out) -> No
     ax.set_ylabel("smallest detectable change in the field mean")
     _title(fig, "How many samples to detect a change in a field's mean stock",
            "Two independent campaigns of n samples, block kriging, 80 % power at the 5 % level; the change as a share "
-           "of the field's mean stock in 0–30 cm. Dots: each field's current design. Under the fitted models, averaged "
-           "over their posterior.", 110)
+           "of the field's mean stock in 0–30 cm, at fixed depth. Dots: each field's current design. Under the fitted "
+           "models, averaged over their posterior, and assuming they carry over to the next campaign.", 110)
     fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
     plt.close(fig)
 
