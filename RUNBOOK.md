@@ -2332,6 +2332,15 @@ browser from the record the DOI resolves to, and stored with
 with a manifest row whose status reads "manual", accepted only if the zip
 holds a GeoPackage.
 
+**15.11.2026: the zip holds a shapefile, not a GeoPackage.** The first
+hand-downloaded copy (192,399,082 bytes) was rejected: the record's extent
+says "1 GeoPackage", but `Thuenen_Kulisse_OrgBoeden_v1.zip` holds a
+shapefile, `thuenen_kulisse_orgboeden_v1` (.shp 305 MB, .dbf 188 MB, .shx,
+.prj, .cpg, a spatial index, and the styles of its `moorbodenkat`
+categories). The check now accepts a GeoPackage or a complete shapefile
+(.shp, .shx, .dbf and .prj). The rejected copy stays in `_failed/`, its
+manifest row with the link as typed, a trailing "~" included.
+
 ### References for Stage 6
 
 - Grimm, R., & Behrens, T. (2010). Uncertainty analysis of sample locations within digital soil mapping approaches. *Geoderma*, 155(3–4), 154–163. https://doi.org/10.1016/j.geoderma.2009.05.006

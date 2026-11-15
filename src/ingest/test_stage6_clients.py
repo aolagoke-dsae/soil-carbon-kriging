@@ -155,6 +155,11 @@ def test_organic_finds_the_zip_on_the_landing_page_and_needs_a_geopackage():
                      "openagrar_derivate_00001/Thuenen_Kulisse_OrgBoeden_v1.zip",
                      "README.txt": "https://www.openagrar.de/servlets/MCRFileNodeServlet/openagrar_derivate_00001/README.txt"}
     assert O.usable_zip(200, _zip("kulisse.gpkg")) and not O.usable_zip(200, _zip("kulisse.shp"))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for e in (".shp", ".shx", ".dbf", ".prj", ".cpg"):
+            z.writestr("dir/kulisse" + e, b"x")
+    assert O.usable_zip(200, buf.getvalue())
 
 
 def test_organic_pull_stores_landing_readme_and_zip(monkeypatch, tmp_path):
@@ -179,7 +184,7 @@ def test_organic_from_a_hand_downloaded_copy(monkeypatch, tmp_path):
     bad = tmp_path / "other" / "Thuenen_Kulisse_OrgBoeden_v1.zip"
     bad.parent.mkdir()
     bad.write_bytes(_zip("k.shp"))
-    with pytest.raises(RuntimeError, match="no GeoPackage"):
+    with pytest.raises(RuntimeError, match="neither a GeoPackage"):
         O.from_file(bad)
     with pytest.raises(RuntimeError, match="expected"):
         O.from_file(tmp_path / "other.zip") if (tmp_path / "other.zip").write_bytes(b"x") else None

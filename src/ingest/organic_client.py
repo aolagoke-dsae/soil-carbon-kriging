@@ -166,8 +166,13 @@ def file_links(html: str, base: str) -> dict[str, str]:
     return out
 
 
+SHAPEFILE = (".shp", ".shx", ".dbf", ".prj")
+
+
 def usable_zip(status: int, body: bytes) -> bool:
-    """HTTP 200 and a zip that holds a GeoPackage."""
+    """HTTP 200 and a zip that holds the map: a GeoPackage, as the record's
+    extent says, or a shapefile with its .shx, .dbf and .prj, which is what
+    the v1 zip holds (15.11.2026)."""
     import io
     import zipfile
     if status != 200:
@@ -176,7 +181,11 @@ def usable_zip(status: int, body: bytes) -> bool:
         names = zipfile.ZipFile(io.BytesIO(body)).namelist()
     except zipfile.BadZipFile:
         return False
-    return any(n.lower().endswith(".gpkg") for n in names)
+    low = [n.lower() for n in names]
+    if any(n.endswith(".gpkg") for n in low):
+        return True
+    stems = {n[: -len(e)] for n in low for e in (".shp",) if n.endswith(e)}
+    return any(all(stem + e in low for e in SHAPEFILE) for stem in stems)
 
 
 def pull(refresh: bool = False) -> list[dict]:
@@ -200,7 +209,7 @@ def pull(refresh: bool = False) -> list[dict]:
     ok = usable_zip(r.status_code, r.content)
     rows.append(_record(item(ZIP_NAME), links[ZIP_NAME], r.status_code, r.content, ok, attempt, DOI))
     if not ok:
-        raise RuntimeError(f"{ZIP_NAME} rejected (HTTP {r.status_code}, or no GeoPackage inside)")
+        raise RuntimeError(f"{ZIP_NAME} rejected (HTTP {r.status_code}, or neither a GeoPackage nor a shapefile inside)")
     return rows
 
 
@@ -217,7 +226,7 @@ def from_file(path: Path, url: str = DOI) -> dict:
     ok = usable_zip(200, body) if name == ZIP_NAME else bool(body)
     row = _record(item(name), url, "manual", body, ok, 0, DOI)
     if not ok:
-        raise RuntimeError(f"{name} rejected: no GeoPackage inside")
+        raise RuntimeError(f"{name} rejected: neither a GeoPackage nor a complete shapefile inside")
     return row
 
 
