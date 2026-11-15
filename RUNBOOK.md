@@ -17,7 +17,7 @@ Plan, not to this file.
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
 | 5 | Each field's mean stock by Bayesian block kriging, beside the design-based estimate the samples support; the samples needed for a given precision and the detectable change; gstat in R as an independent check; the six figures and the report | **run** 14.11.2026: Checkpoint 5 passed, 5/5 rules; G1 (gstat) failed at its fixed tolerance for the block variance and passes as amended |
-| 6 | BZE-LW: a quantile regression forest with kriged residuals at national scale, its covariates averaged within 4 km of each published point | not yet specified |
+| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **rules fixed** 15.11.2026; nothing pulled |
 
 Stages 5 and 6 are a direction, not instructions. Each gets its rules,
 written before its data is touched, once the stage before it has passed. The order
@@ -2216,3 +2216,73 @@ grid with block kriging:
 - Smith, P. (2004). How long before a change in soil organic carbon can be detected? *Global Change Biology*, 10(11), 1878–1883. https://doi.org/10.1111/j.1365-2486.2004.00854.x
 - Webster, R., & Oliver, M. A. (2007). *Geostatistics for Environmental Scientists* (2nd ed.). Wiley. https://doi.org/10.1002/9780470517277
 - Wendt, J. W., & Hauser, S. (2013). An equivalent soil mass procedure for monitoring soil organic carbon in multiple soil layers. *European Journal of Soil Science*, 64(1), 58–65. https://doi.org/10.1111/ejss.12002
+
+---
+
+## Stage 6: what Germany's published soil inventory can say, given where its points are not (BZE-LW)
+
+*Rules fixed 15 November 2026, before any covariate is pulled or any model
+of BZE-LW is fitted. Stage 1 pulled and checked the site layer (Checkpoint
+1); nothing in it has been related to a covariate. Scope chosen with the
+author on 15.11.2026: the location noise first, a lean covariate set, mineral
+and organic soils modelled apart.*
+
+**The question.** BZE-LW publishes each site's stock in 0–30 cm, but not
+where it was taken: every published point was "generated at random within 4
+km of the originally planned point" (Stage 1). Sakhaee et al. (2022) mapped
+the inventory's carbon with 24 covariates and machine learning; this stage
+asks what an outside user, who has only the published points, can learn and
+predict, and what the 4 km costs. Positional error has been found negligible
+where it is metres (Nelson et al. 2011) and to degrade covariate-based models
+as it grows (Grimm & Behrens 2010); 4 km is far beyond the scale of most
+terrain covariates.
+
+**What the site layer holds.** 3,104 sites, every stock present (9.0–418.8
+Mg C/ha, median 62.2); 2,958 mineral sites (2,204 cropland, 704 grassland,
+50 special crops) and 146 organic (`bze_moor` = 1: 30 cropland, 116
+grassland), whose median stock is 241.7 against 60.7. Beside the stock, the
+layer describes each site as it was found in the field: soil type, groundwater
+class, slope, aspect, curvature, relief position and soil-climate region.
+Those descriptions were made at the true site and are not moved.
+
+| Decision | What | Why |
+|---|---|---|
+| D1 two populations | Mineral (`bze_moor` = 0, 2,958 sites) and organic soils (146) are modelled apart, with the same rules; the organic model's small sample is stated wherever its results are | Separating them cut the algorithms' average RMSE by 34 % (Sakhaee et al. 2022, abstract); the organic stocks are four times the mineral ones |
+| D2 three covariate sources | **Climate:** DWD's multi-annual grids of mean annual air temperature and annual precipitation, 1 km, for the most recent reference period DWD publishes for both, pinned by file. **Terrain:** BKG's DGM200 (200 m): elevation, slope, and topographic position at 1 and 5 km. **Organic soils:** the share of the area mapped as organic soil in the updated map of organic soils in Germany (Wittnebel et al. 2023). Each source pulled by a client of Stage 1's kind (write-once `raw/`, manifest), its licence and version recorded before use | One national, open source each for climate, relief and organic soils, the factors that vary over kilometres and that a published point can still locate. The site layer's land use (cropland, grassland, special crops) enters every model as the site's own: it is recorded at the site, and is what a user of a map would condition on |
+| D3 two ways to read a covariate | (i) **at the published point**; (ii) **the mean over the disc of radius 4 km around it**, every grid cell whose centre lies inside weighted by its area, the cells outside Germany or without data left out and their share recorded. Both are computed for every covariate and site | If the true site lies anywhere within 4 km of the published point, (ii) is the covariate's expectation under a displacement uniform over the disc's area; (i) is what a user who ignores the noise would do. The noise's distribution within the disc is not published; uniform over the area is the stated assumption |
+| D4 the models | For each population and each of D3's readings: (a) a **quantile regression forest** on the covariates of D2, the site's land use and its coordinates, with Stage 4's settings (D7: 1,000 trees, a third of the covariates at a split, more than ten sites in a leaf, no tuning); (b) **the same forest with kriged residuals**, the out-of-bag residuals kriged by Stage 4's Bayesian kriging (exponential, constant mean, D3's grid with bounds from the residuals' own nearest-neighbour and largest distances); (c) a **baseline**, the training folds' stocks of the site's land use. And, as a reference that no map can use, (d) a quantile regression forest on the **site descriptions** of the layer (soil type, groundwater class, slope, aspect, curvature, relief position, soil-climate region) with land use, and no coordinates | (a) and (b) are ML3 of the review of Stage 2. (d) measures what the published location costs: the same sites, described where they are, against the same sites read from a map where they are not |
+| D5 cross-validation | Ten folds at random, repeated three times, the same folds for every model and reading, as Stage 4's D1; everything fitted inside each training set | BZE-LW is a systematic 8 km grid, for which random cross-validation estimates map accuracy without bias (Wadoux et al. 2021) |
+| D6 scores | As Stage 4's D8: CRPS, ME, RMSE, MEC, PICP at 50, 80, 90 and 95 %, QCP; per repeat and averaged; and paired CRPS differences between the readings (i) and (ii) and between the models | The same scores make Stage 4 and Stage 6 comparable |
+| D7 what a second displacement costs | For mineral soils, five times: every published point displaced again, uniformly over a disc of 4 km, by a fixed seed; the covariates read again under (i) and (ii); model (a) refitted and scored under D5's folds. Reported: the loss in CRPS and MEC from one displacement to two | The first displacement cannot be undone, but its cost can be estimated by adding a second of the same kind: if a second 4 km costs little, the first probably did too |
+| D8 the maps | For mineral soils, at the centre of every 1 km cell of Germany: model (a) or (b), whichever D6 scores better under reading (ii), predicts the stock in 0–30 cm **if the cell were cropland** and **if it were grassland**, with its median and 90 % interval; the covariates of each cell read as D3's (ii) around its centre. The maps say that they are conditional on the land use, and that they are not masked to agricultural land | A map from these data cannot know where the fields are; conditioning on the land use says what it can |
+| D9 not done | No LUCAS data, no tuning, no covariate selection, no organic-soil map of stocks (146 sites cannot carry one), no change over time | Stated rather than left out silently |
+
+### Checkpoint 6
+
+Checkpoint 6 passes when every rule below passes. Each rule is one function
+in `src/checks/checkpoint6.py`, with a test that makes it fail.
+
+| Rule | Passes when |
+|---|---|
+| C1 provenance | Every covariate file is stored with its URL, size and SHA-256 in `raw/manifest.csv`, and `config/sources.csv` records its version, licence and the attribution it asks for, read from the source |
+| C2 coverage | Every one of the 3,104 sites has every covariate under both readings, and no disc of (ii) has less than half its area inside the data; the sites with any part of their disc outside are counted |
+| C3 disc means | At 50 sites drawn with a fixed seed, every covariate's disc mean equals a brute-force mean over the source grid's cell centres within the disc within 10⁻⁹ relative; and the same at a site placed on a synthetic grid with a known mean |
+| C4 forests | As Stage 4's M1: every QRF weight non-negative, summing to one, equal to a recomputation from the trees' leaves within 10⁻¹² |
+| C5 folds | As Stage 4's C1: the folds partition the sites, sizes differing by at most one per population and repeat; every model and reading uses them |
+| C6 residual kriging | As Stage 4's K1 and K3 for the residual kriging of D4 (b): the predictor and variance equal the bordered system's within 10⁻⁹ at one fold; the predictive returns its levels within 10⁻⁹ |
+| C7 the second displacement | Every displaced point lies within 4 km of its published point, and the five displacements' distances follow the uniform-over-disc distribution (a Kolmogorov–Smirnov test of the distance divided by 4 km against √U, p above 0.01) |
+| C8 records | `curated/bze_covariates.parquet`, `curated/bze_cv.parquet` and the maps' tables hold every row these rules name, every value finite where the rules say it must be |
+
+### If it fails
+
+As for every stage: a failure is recorded here with its date, what failed
+and why, and any amendment to a rule says that it came after the failure.
+
+### References for Stage 6
+
+- Grimm, R., & Behrens, T. (2010). Uncertainty analysis of sample locations within digital soil mapping approaches. *Geoderma*, 155(3–4), 154–163. https://doi.org/10.1016/j.geoderma.2009.05.006
+- Nelson, M. A., Bishop, T. F. A., Triantafilis, J., & Odeh, I. O. A. (2011). An error budget for different sources of error in digital soil mapping. *European Journal of Soil Science*, 62(3), 417–430. https://doi.org/10.1111/j.1365-2389.2011.01365.x
+- Poeplau, C., Don, A., Flessa, H., et al. (2020). Stocks of organic carbon in German agricultural soils—Key results of the first comprehensive inventory. *Journal of Plant Nutrition and Soil Science*, 183(6), 665–681. https://doi.org/10.1002/jpln.202000113
+- Sakhaee, A., Gebauer, A., Ließ, M., et al. (2022). Spatial prediction of organic carbon in German agricultural topsoil using machine learning algorithms. *SOIL*, 8(2), 587–604. https://doi.org/10.5194/soil-8-587-2022 (Sections 1–2.2 read 15 November 2026)
+- Wadoux, A. M. J.-C., Heuvelink, G. B. M., de Bruin, S., & Brus, D. J. (2021). Spatial cross-validation is not the right way to evaluate map accuracy. *Ecological Modelling*, 457, 109692. https://doi.org/10.1016/j.ecolmodel.2021.109692
+- Wittnebel, M., Frank, S., & Tiemeyer, B. (2023). *Aktualisierte Kulisse organischer Böden in Deutschland*. Thünen Working Paper 212. https://doi.org/10.3220/WP1683180852000 (dataset: https://doi.org/10.3220/DATA20230510130443-0; record read 15 November 2026)
