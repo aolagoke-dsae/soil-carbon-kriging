@@ -197,7 +197,9 @@ scipy==1.18.1 ; python_full_version >= '3.12'
     #   scikit-image
     #   scikit-learn
 shapely==2.2.0
-    # via geopandas
+    # via
+    #   -r requirements.txt
+    #   geopandas
 threadpoolctl==3.8.0
     # via scikit-learn
 tifffile==2026.3.3 ; python_full_version < '3.12'

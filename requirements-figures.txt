@@ -1,5 +1,7 @@
-# Figure and GIS libraries for the notebooks. The clients, the checks and the
-# tests import none of them, so CI does not install them.
+# Figure and GIS libraries for the notebooks. Since 15.11.2026 they are in
+# requirements.txt and the lock file as well, because unit tests redraw the
+# report's figures (RUNBOOK, Review of v1.0); this file stays because the
+# notebooks name it.
 #   pip install -r requirements.txt -r requirements-figures.txt
 geopandas>=1.0
 matplotlib>=3.8

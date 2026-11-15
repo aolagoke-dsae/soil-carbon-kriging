@@ -61,3 +61,20 @@ def test_network_errors_end_in_one_clear_error_after_every_attempt():
 def test_every_request_names_the_project_and_has_a_timeout():
     assert "soil-carbon-kriging" in H.session().headers["User-Agent"]
     assert all(t > 0 for t in H.TIMEOUT)
+
+
+class PostSession:
+    def __init__(self, *items):
+        self.items, self.payloads = list(items), []
+
+    def post(self, url, json=None, timeout=None):
+        self.payloads.append(json)
+        return self.items.pop(0)
+
+
+def test_post_follows_the_same_rules_and_sends_json():
+    """Prevents: SDA's POSTs escaping the retry rules every GET follows."""
+    waits = []
+    s = PostSession(Resp(503), Resp(200))
+    r, attempt = H.post(s, "u", {"query": "q"}, sleep=waits.append)
+    assert (r.status_code, attempt, waits) == (200, 2, [2.0]) and s.payloads == [{"query": "q"}] * 2

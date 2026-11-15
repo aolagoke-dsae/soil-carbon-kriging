@@ -1,4 +1,4 @@
-"""One HTTP GET with the retry rules both clients share.
+"""One HTTP GET (or POST) with the retry rules every client shares.
 
 Retried: a connection error or timeout, HTTP 429 (after its Retry-After) and
 any 5xx, up to MAX_RETRIES attempts with exponential backoff capped at 30 s.
@@ -45,12 +45,24 @@ def get(http, url: str, params: Optional[dict] = None, *,
     """GET url and return (response, attempt number). Raises RuntimeError
     when every attempt ended in a network error, a 429 or a 5xx. sleep
     defaults to time.sleep, looked up at call time."""
+    return _send(lambda: http.get(url, params=params, timeout=TIMEOUT), url, max_retries, sleep)
+
+
+def post(http, url: str, payload: dict, *,
+         max_retries: int = MAX_RETRIES,
+         sleep: Optional[Callable[[float], None]] = None):
+    """POST payload as JSON, under the same rules as get(). Added 15.11.2026
+    for Soil Data Access, whose queries are POSTed (RUNBOOK, Stage 1, U1)."""
+    return _send(lambda: http.post(url, json=payload, timeout=TIMEOUT), url, max_retries, sleep)
+
+
+def _send(call, url: str, max_retries: int, sleep):
     sleep = sleep or time.sleep
     last: Optional[Exception] = None
     for attempt in range(1, max_retries + 1):
         wait = float(min(2 ** attempt, 30))
         try:
-            r = http.get(url, params=params, timeout=TIMEOUT)
+            r = call()
         except requests.RequestException as e:
             last = e
         else:

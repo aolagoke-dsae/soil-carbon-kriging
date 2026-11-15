@@ -76,6 +76,10 @@ and its bulk densities suggest a data problem (M5).
   `notebooks/01_data_checks.py` imports **geopandas**; neither is in
   `requirements.txt` or `requirements-lock.txt`, and CI runs neither, so the
   published figures cannot be rebuilt from the documented environment.
+  *Corrected 15 November 2026: both are declared in `requirements-figures.txt`,
+  committed with Stage 1, which the notebooks and the RUNBOOK name; the
+  review missed the file. What stands is that the lock file did not pin
+  them and CI never ran `figures.py`.*
 - The report says the block-kriging interval is "up to 46 % narrower", and
   leaves out that it is 2 % wider at IL-BR, which the RUNBOOK records.
 - **What is real** in the README is one sentence of about 350 words. Bullets
