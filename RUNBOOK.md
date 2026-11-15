@@ -2277,6 +2277,24 @@ the files from the listings it stores; BKG's download directory
 the Atlas record of the map of organic soils (CC BY 4.0), which names no
 WFS layer, hence `--discover` first.
 
+### The models
+
+```bash
+python -m src.transform.bze_covariates           # D2, D3: the rasters and both readings at every site
+python -m src.transform.bze_models --part cv     # D4, D5: every model and feature set, cross-validated
+python -m src.transform.bze_models --part d7     # D7: five second displacements, the forest refitted
+```
+
+Choices made while building, none of them a result: the description's
+attributes enter the forest coded by their categories in sorted order (a
+forest splits on the codes; no attribute is dropped, and a missing aspect,
+on level ground, is its own category); a third of the features is 4 for the
+twelve of "point" and "disc" and 3 for the eleven of "desc"; the residual
+kriging's grid runs from half the smallest to three times the largest
+distance between training sites (Stage 2's rule), 85 steps of range at the
+mineral sites, so each of its 60 folds takes minutes, and the long run is
+made where BLAS can use every core.
+
 ### Checkpoint 6
 
 Checkpoint 6 passes when every rule below passes. Each rule is one function
