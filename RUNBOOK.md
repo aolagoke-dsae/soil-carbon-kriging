@@ -17,7 +17,7 @@ Plan, not to this file.
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
 | 5 | Each field's mean stock by Bayesian block kriging, beside the design-based estimate the samples support; the samples needed for a given precision and the detectable change; gstat in R as an independent check; the six figures and the report | **run** 14.11.2026: Checkpoint 5 passed, 5/5 rules; G1 (gstat) failed at its fixed tolerance for the block variance and passes as amended |
-| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **rules fixed** 15.11.2026; nothing pulled |
+| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **covariates read** 15.11.2026: DWD 1991–2020, DGM200 and the map of organic soils at all 3,104 sites, under both readings; C1–C3 pass (C2 amended after it failed: 23 coastal and border sites left out) |
 
 Stages 5 and 6 are a direction, not instructions. Each gets its rules,
 written before its data is touched, once the stage before it has passed. The order
@@ -2285,7 +2285,7 @@ in `src/checks/checkpoint6.py`, with a test that makes it fail.
 | Rule | Passes when |
 |---|---|
 | C1 provenance | Every covariate file is stored with its URL, size and SHA-256 in `raw/manifest.csv`, and `config/sources.csv` records its version, licence and the attribution it asks for, read from the source |
-| C2 coverage | Every one of the 3,104 sites has every covariate under both readings, and no disc of (ii) has less than half its area inside the data; the sites with any part of their disc outside are counted |
+| C2 coverage | Every one of the 3,104 sites has every covariate under both readings, and no disc of (ii) has less than half its area inside the data; the sites with any part of their disc outside are counted. *Amended 15.11.2026 after it failed (If it fails): every kept site has them, and the sites left out are at most 1 % and listed* |
 | C3 disc means | At 50 sites drawn with a fixed seed, every covariate's disc mean equals a brute-force mean over the source grid's cell centres within the disc within 10⁻⁹ relative; and the same at a site placed on a synthetic grid with a known mean |
 | C4 forests | As Stage 4's M1: every QRF weight non-negative, summing to one, equal to a recomputation from the trees' leaves within 10⁻¹² |
 | C5 folds | As Stage 4's C1: the folds partition the sites, sizes differing by at most one per population and repeat; every model and reading uses them |
@@ -2340,6 +2340,35 @@ shapefile, `thuenen_kulisse_orgboeden_v1` (.shp 305 MB, .dbf 188 MB, .shx,
 categories). The check now accepts a GeoPackage or a complete shapefile
 (.shp, .shx, .dbf and .prj). The rejected copy stays in `_failed/`, its
 manifest row with the link as typed, a trailing "~" included.
+
+**15.11.2026: the covariates read, and C2 failed.** The second copy was
+stored (192,399,082 bytes, SHA-256 f2544a93…, the same bytes as the
+rejected one). `python -m src.transform.bze_covariates` built the seven
+rasters and read them at all 3,104 sites; `python -m src.checks.checkpoint6`:
+
+```text
+PASS  C1 provenance: accepted files in the manifest: dwd_grids_1991_2020 4, bkg_dgm200 2, thuenen_orgsoils_2023 1; each source in config/sources.csv with its version, licence and attribution
+FAIL  C2 coverage: 3104 sites; 17 lack a covariate under a reading (temperature_point 17, precipitation_point 17); 15 discs with less than half their cells inside the data; 146 discs partly outside
+PASS  C3 disc means: 50 sites x 7 covariates against a brute-force mean: largest difference 0.0e+00 (relative; rule 1e-09)
+```
+
+17 published points fall outside DWD's land grid and 15 discs lie mostly
+outside the data: 23 sites in all, at coasts and borders (ten in
+Schleswig-Holstein), 21 mineral and 2 organic. Their stocks run from 35 to
+265 Mg C/ha (median 73). **C2's verdict at the fixed rule stays FAIL in
+this record.** Amended, after the failure and saying so: the 23 sites are
+listed in `curated/bze_covariates.parquet` (column `kept` false) and left
+out of every model and score, and C2 passes when every kept site has every
+covariate under both readings with at least half its disc inside the data,
+and the sites left out are at most 1 % of 3,104. Filling their covariates
+in would put a model inside the data, as Stage 2's D2 put it.
+
+Reported, not judged: DWD's temperatures are in tenths of a degree
+Celsius (median 95, that is 9.5 °C); one point, in Schleswig-Holstein, reads
+an elevation of −66 m at its cell and 0.2 m over its disc. **The 4 km is
+visible in the map of organic soils:** of the 146 sites the inventory calls
+organic, 39 % have their published point on a mapped organic soil, and their
+discs average 33 % organic; of the mineral sites, 4.4 % and 4.9 %.
 
 ### References for Stage 6
 
