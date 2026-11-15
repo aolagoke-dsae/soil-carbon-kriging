@@ -136,3 +136,11 @@ def test_organic_candidates_from_the_capabilities():
     assert len(types) == 2
     assert O.candidates(types) == [("geonode:kulisse_org_boeden", "Aktualisierte Kulisse organischer Boeden")]
     assert O.number_matched(b'<wfs:FeatureCollection numberMatched="12345" numberReturned="0"/>') == 12345
+
+
+def test_organic_layer_names_and_links_from_the_api_record():
+    doc = {"title": "Kulisse", "maplayers": [{"name": "geonode:kulisse_org", "dataset": {"alternate": "geonode:kulisse_org",
+           "links": [{"url": "https://atlas.example/geoserver/ows?service=WFS"}, {"url": "https://atlas.example/about"}]}},
+           {"name": "basemap"}]}
+    assert O.layer_names(doc) == ["geonode:kulisse_org", "geonode:kulisse_org"]
+    assert O.walk_links(doc) == ["https://atlas.example/geoserver/ows?service=WFS"]

@@ -2298,6 +2298,19 @@ in `src/checks/checkpoint6.py`, with a test that makes it fail.
 As for every stage: a failure is recorded here with its date, what failed
 and why, and any amendment to a rule says that it came after the failure.
 
+**15.11.2026: the pulls, on the author's machine.** DWD: both listings and
+the annual grids of 1991–2020, `grids_germany_multi_annual_air_temp_mean_1991_2020_17.asc.gz`
+(221 kB) and `grids_germany_multi_annual_precipitation_1991-2020_17.asc.gz`
+(552 kB): the most recent period, published by both. BKG: DGM200, 35.4 MB,
+its MD5 equal to the published one. **The Atlas' WFS endpoint answered 404.**
+`https://atlas.thuenen.de/geoserver/ows`, from which Stage 1 paged the
+BZE-LW layer on 5 November, now answers GetCapabilities with nginx's "404
+Not Found"; the response is kept in `raw/THUENEN/organic/capabilities/_failed/`.
+The discovery now reads the map's record from the Atlas API and tries the
+endpoints the Atlas has used, before any rule depends on the layer. Stage
+1's stored pages are unaffected, but a fresh pull of them would fail the
+same way until the endpoint is found.
+
 ### References for Stage 6
 
 - Grimm, R., & Behrens, T. (2010). Uncertainty analysis of sample locations within digital soil mapping approaches. *Geoderma*, 155(3–4), 154–163. https://doi.org/10.1016/j.geoderma.2009.05.006

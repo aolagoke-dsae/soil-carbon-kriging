@@ -6,8 +6,12 @@ record, so this client first reads the server's capabilities and lists the
 feature types that can be it:
 
     python -m src.ingest.organic_client --discover
-        stores the WFS capabilities, and for each candidate layer its
-        DescribeFeatureType and its number of features, and prints them
+        stores the map's record from the Atlas API and the WFS capabilities
+        at each endpoint the Atlas has used, and prints the layer names and
+        the service and download links they give
+
+On 15.11.2026 the WFS endpoint Stage 1 used, atlas.thuenen.de/geoserver/ows,
+answered GetCapabilities with HTTP 404 (RUNBOOK, Stage 6, If it fails).
 
 The pull of the chosen layer is added once its name, attributes and size
 are known (RUNBOOK, Stage 6, If it fails, records the choice).
@@ -72,29 +76,65 @@ def _record(it: Path, url: str, status: int, body: bytes, accepted: bool, attemp
     return row
 
 
+API = "https://atlas.thuenen.de/api/v2/maps/243"       # the map's own page: atlas.thuenen.de/maps/243
+ENDPOINTS = ("https://atlas.thuenen.de/geoserver/ows", "https://atlas.thuenen.de/geoserver/wfs",
+             "https://atlas.thuenen.de/gs/ows")
+
+
+def walk_links(doc) -> list[str]:
+    """Every string in a JSON document that looks like an OGC or download URL."""
+    out = []
+    if isinstance(doc, dict):
+        for v in doc.values():
+            out += walk_links(v)
+    elif isinstance(doc, list):
+        for v in doc:
+            out += walk_links(v)
+    elif isinstance(doc, str) and doc.startswith("http") and re.search(r"ows|wfs|wms|zip|shp|json|gpkg|download", doc, re.I):
+        out.append(doc)
+    return out
+
+
+def layer_names(doc) -> list[str]:
+    """Every value of a key 'alternate' or 'name' that looks like workspace:layer."""
+    out = []
+    if isinstance(doc, dict):
+        for k, v in doc.items():
+            if k in ("alternate", "name") and isinstance(v, str) and ":" in v:
+                out.append(v)
+            else:
+                out += layer_names(v)
+    elif isinstance(doc, list):
+        for v in doc:
+            out += layer_names(v)
+    return out
+
+
 def discover() -> list[dict]:
+    """The map's record from the Atlas API, then the WFS capabilities at each
+    endpoint the Atlas has used, every response stored."""
+    import json
     raw_store.check_manifest(MANIFEST)
     http = http_get.session()
-    r, attempt = http_get.get(http, ENDPOINT, {"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"})
-    try:
-        types = feature_types(r.content) if r.status_code == 200 else []
-    except ET.ParseError:
-        types = []
-    _record(item("capabilities.xml"), r.url, r.status_code, r.content, bool(types), attempt)
-    if not types:
-        raise RuntimeError(f"capabilities rejected (HTTP {r.status_code})")
     found = []
-    for name, title in candidates(types):
-        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", name)
-        r, attempt = http_get.get(http, ENDPOINT, {"service": "WFS", "version": "2.0.0",
-                                                   "request": "DescribeFeatureType", "typeNames": name})
-        _record(item(f"describe_{safe}.xml"), r.url, r.status_code, r.content, r.status_code == 200, attempt)
-        attrs = re.findall(rb'<xsd:element[^>]*name="([^"]+)"[^>]*type="([^"]+)"', r.content)
-        r2, attempt = http_get.get(http, ENDPOINT, {"service": "WFS", "version": "2.0.0", "request": "GetFeature",
-                                                    "typeNames": name, "resultType": "hits"})
-        _record(item(f"hits_{safe}.xml"), r2.url, r2.status_code, r2.content, r2.status_code == 200, attempt)
-        found.append({"name": name, "title": title, "features": number_matched(r2.content),
-                      "attributes": [(a.decode(), t.decode()) for a, t in attrs]})
+    r, attempt = http_get.get(http, API)
+    try:
+        doc = json.loads(r.content) if r.status_code == 200 else None
+    except ValueError:
+        doc = None
+    _record(item("map_243.json"), r.url, r.status_code, r.content, doc is not None, attempt)
+    found.append({"what": API, "status": r.status_code,
+                  "layers": sorted(set(layer_names(doc))) if doc else [],
+                  "links": sorted(set(walk_links(doc)))[:40] if doc else []})
+    for i, ep in enumerate(ENDPOINTS):
+        r, attempt = http_get.get(http, ep, {"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"})
+        try:
+            types = feature_types(r.content) if r.status_code == 200 else []
+        except ET.ParseError:
+            types = []
+        _record(item(f"capabilities_{i}.xml"), r.url, r.status_code, r.content, bool(types), attempt)
+        found.append({"what": ep, "status": r.status_code, "layers": [f"{n} | {t}" for n, t in candidates(types)],
+                      "links": [], "types": len(types)})
     return found
 
 
@@ -102,16 +142,13 @@ def main(argv: list[str]) -> int:
     if argv != ["--discover"]:
         print(__doc__)
         return 2
-    try:
-        found = discover()
-    except RuntimeError as e:
-        print(f"FAILED: {e}")
-        return 1
-    if not found:
-        print("no feature type's name or title mentions organic soils, peat or a 'Kulisse'")
-    for f in found:
-        print(f"{f['name']}  |  {f['title']}  |  {f['features']} features")
-        print("    " + ", ".join(f"{a}:{t.split(':')[-1]}" for a, t in f["attributes"]))
+    for f in discover():
+        extra = f" ({f['types']} feature types)" if "types" in f else ""
+        print(f"{f['what']}: HTTP {f['status']}{extra}")
+        for x in f["layers"]:
+            print(f"    layer  {x}")
+        for x in f["links"]:
+            print(f"    link   {x}")
     return 0
 
 
