@@ -43,7 +43,8 @@ with its rules fixed first, says so.
 | 15.11.2026 | M3: at the five grid fields, kriging from half the samples predicts the other half's mean (H1–H5): supported, the 95 % intervals holding 0.935 pooled, CRPS 11 % below the sample mean's, intervals 19 % narrower; at IL-DG and IL-RD narrower without being better | Stage 5, *Addendum* on M3; `src/transform/halves.py` |
 | 15.11.2026 | M4: the grid with the sample mean (G1–G4): for an MDC of 10 %, 25–103 samples by random sampling, 13–65 by the grid's mean, 13–52 by the grid with kriging; most of the reduction is the grid's | Stage 5, *Addendum* on M4; `src/transform/grid_mean.py` |
 | 15.11.2026 | m4: the REML criterion against R's nlme (L1–L3): PASS, differences within 4 × 10⁻¹² at 144 parameter sets; nlme's estimates equal this repository's at the four large fields; the check joins CI's R job | Stage 2, *Addendum* on m4; `src/checks/nlme.py` |
-| open | the answer from the dataset's author (M5); the spread of the scores over the three repeats (section 3) | — |
+| 16.11.2026 | M5: the dataset's corresponding author answered: IL-BR was measured as the other fields were and is a true outlier, low in carbon and in bulk density; Table 1 counts only the cores that reached the full sampling depth; a caution on the nugget recorded as a limit | Stage 1, *Addendum*, the author's answer |
+| open | the spread of the scores over the three repeats (section 3) | — |
 
 ---
 
@@ -251,6 +252,29 @@ and their sample means (Mg C/ha):
   analysis rather than the published locations. It goes into the same
   question to the author.
 
+**The author's answer, 16 November 2026.** The dataset's corresponding
+author (E. Potash) answered the question of 15 November by email the next
+day:
+
+- **IL-BR.** The field was measured in the same way as the others and is "a
+  true outlier with low SOC and BD". He is not clear on the reasons; his
+  guess is past management leading to depletion and erosion of organic
+  matter. Under Q5 the question is answered: IL-BR's level is confirmed as
+  measured, not a data problem. The README keeps IL-BR beside the range of
+  the other seven fields, as an outlier, and now says the author confirms
+  it.
+- **Table 1's sample sizes (Q4).** He believes the paper used only the cores
+  that reached the full sampling depth (for example 90 cm) and left out the
+  shorter ones (for example 85 cm). That fits the direction of the
+  differences at IL-DG and IL-RT, where the published data hold more
+  locations with a complete 0–30 cm profile than Table 1 counts. Nothing
+  here changes: this repository analyses 0–30 cm.
+- **A caution on the kriging, unasked.** The grid's sampling distance,
+  though short against many other datasets, includes no very short lags
+  except at NE, so the short-range variation and the nugget are likely not
+  well identified. Recorded as a limit of the variogram parameters of
+  Stage 2 and of what rests on them in Stages 4 and 5; nothing is re-run.
+
 ### Addendum (review of v1.0, M5): IL-BR against the soil survey
 
 *Rules fixed 15 November 2026, before `src/ingest/sda_client.py` is written
@@ -296,7 +320,8 @@ organic matter, three to six map units per field. Organic carbon in 0–30 cm,
   2.03–2.77 %), and IL-BR's measured mean lies inside its map units' low–high
   range. Its low level is what SSURGO maps for that ground. The README says
   so; under Q5, IL-BR stays out of the headline range until the dataset's
-  author answers.
+  author answers. *Amended 16.11.2026: he has, and confirms IL-BR's level
+  (the first addendum, the author's answer).*
 - The ratios' spread, 0.61 to 1.23, makes U4 a coarse test: an error of up
   to about 25 % in IL-BR's carbon, either way, would still pass it. It does
   rule out a level wrong by a factor of two or more, which is what the

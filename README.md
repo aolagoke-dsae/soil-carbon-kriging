@@ -47,7 +47,7 @@ Feldern besser ab als der hier trainierte Quantile Regression Forest; ein
 Random Forest mit gekrigten Residuen ist an vier Feldern besser. Der mittlere Vorrat je Feld, per
 bayesschem Block-Kriging geschätzt, liegt an sieben Feldern zwischen 50,8 und
 65,7 Mg C/ha; der niedrige Wert des achten (IL-BR, 21,8) stimmt mit der
-US-Bodenkarte (SSURGO) überein, die Bestätigung durch den Autor steht aus. Um eine
+US-Bodenkarte (SSURGO) überein und ist vom Autor des Datensatzes als echter Ausreißer bestätigt. Um eine
 Änderung von 10 % des Mittels zwischen zwei Beprobungen nachzuweisen, genügen
 statt 25 bis 103 Proben bei einfacher Zufallsstichprobe 13 bis 65 auf einem
 Raster mit dem Stichprobenmittel und 13 bis 52 mit Block-Kriging, sofern das
@@ -163,8 +163,10 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
   0.56 % above 30 cm, against 1.6–1.9 % elsewhere), not because of its bulk
   densities: its 20 implausibly loose segments move its mean by 0.36 Mg C/ha.
   The USDA soil survey (SSURGO) agrees: it expects IL-BR's soils to hold
-  about a third of the other Illinois fields' carbon. It awaits confirmation
-  from the dataset's author (review, M5; RUNBOOK, Stage 1, *Addenda*).
+  about a third of the other Illinois fields' carbon. The dataset's author
+  confirms it (16 November 2026): IL-BR was measured as the other fields
+  were and is a true outlier, low in carbon and in bulk density, perhaps
+  through past management (review, M5; RUNBOOK, Stage 1, *Addenda*).
 - Block kriging and the sample mean agree at every field; the block-kriging
   interval is 6 to 46 % narrower at seven fields and 2 % wider at IL-BR.
   Against held-out samples, kriging from half of each grid field's samples

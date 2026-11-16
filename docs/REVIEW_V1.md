@@ -21,7 +21,8 @@ against its DOI record on that day.
 m5 and m6, adopted on 15 November 2026 (RUNBOOK, *Review of v1.0*); m2 is
 listed among the report's limits. M5 addressed on 15 November 2026 (RUNBOOK,
 Stage 1, *Addenda*): IL-BR's level is its carbon content's and agrees with
-the USDA soil survey; the author's answer awaited. M1 addressed the same
+the USDA soil survey; the dataset's author confirmed it on 16 November
+2026. M1 addressed the same
 day (RUNBOOK, Stage 4, *Addendum* on M1): against QRF 6 wins and 2 losses,
 against RF-RK 3 wins, 1 tie and 4 losses. M2 addressed the same day
 (RUNBOOK, Stage 5, *Addendum* on M2): the field means are robust to the
