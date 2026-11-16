@@ -7,16 +7,22 @@ abstract: >-
   1,163 locations in eight U.S. Midwest fields, with REML covariance models,
   terrain covariates from USGS 3DEP, cross-validation against two random
   forests, maps with their predictive uncertainty, and each field's mean
-  stock by Bayesian block kriging with the samples needed to detect a change.
-  Each stage's acceptance rules are fixed by a commit before its data is used.
+  stock by Bayesian block kriging with the samples needed to detect a change;
+  revised after an adversarial pre-publication review. Then Germany's
+  agricultural soil inventory (BZE-LW, 3,104 sites), whose published points
+  are moved by up to 4 km: quantile regression forests on climate, terrain
+  and organic-soil covariates read at the point and over its 4 km disc, the
+  cost of a second displacement, and a 1 km map of mineral soils' stock
+  conditional on land use. Each stage's acceptance rules are fixed by a
+  commit before its data is used.
 authors:
   - family-names: Olagoke
     given-names: Adewole
 repository-code: "https://github.com/aolagoke-dsae/soil-carbon-kriging"
 url: "https://aolagoke-dsae.github.io/soil-carbon-kriging/"
 license: MIT
-version: "1.1.0"
-date-released: "2026-11-15"
+version: "1.2.0"
+date-released: "2026-11-16"
 keywords:
   - soil organic carbon
   - geostatistics
@@ -26,6 +32,9 @@ keywords:
   - REML
   - uncertainty quantification
   - sampling design
+  - quantile regression forest
+  - digital soil mapping
+  - positional error
 references:
   - type: data
     title: >-
@@ -80,3 +89,29 @@ references:
       - name: U.S. Geological Survey
     url: "https://www.sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5"
     notes: "Public domain (U.S. Government work); tile versions pinned in raw/manifest.csv."
+  - type: data
+    title: "Grids of multi-annual mean air temperature and precipitation over Germany, 1991-2020"
+    authors:
+      - name: "Deutscher Wetterdienst (DWD), Climate Data Center"
+    url: "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/"
+    license: CC-BY-4.0
+  - type: data
+    title: "Digitales Geländemodell Gitterweite 200 m (DGM200)"
+    authors:
+      - name: "Bundesamt für Kartographie und Geodäsie (BKG)"
+    url: "https://gdz.bkg.bund.de/index.php/default/digitales-gelandemodell-gitterweite-200-m-dgm200.html"
+    notes: "© GeoBasis-DE / BKG (2026) dl-de/by-2-0"
+  - type: data
+    title: "Aktualisierte Kulisse organischer Böden in Deutschland"
+    authors:
+      - family-names: Wittnebel
+        given-names: Mareille
+      - family-names: Frank
+        given-names: Stefan
+      - family-names: Tiemeyer
+        given-names: Bärbel
+    year: 2023
+    publisher:
+      name: OpenAgrar Repositorium
+    doi: 10.3220/DATA20230510130443-0
+    license: CC-BY-4.0

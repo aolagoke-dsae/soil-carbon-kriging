@@ -223,5 +223,4 @@ Code: MIT ([`LICENSE`](LICENSE)). Data: CC BY 4.0, from the sources above,
 attributed as their publishers ask in [`config/sources.csv`](config/sources.csv).
 
 To cite this repository: [`CITATION.cff`](CITATION.cff), shown by GitHub as
-*Cite this repository*; the release is v1.1 (Stages 1 to 5, revised after
-the review of v1.0).
+*Cite this repository*; the release is v1.2 (Stages 1 to 6).
