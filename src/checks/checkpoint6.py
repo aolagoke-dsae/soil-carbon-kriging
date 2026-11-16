@@ -115,11 +115,150 @@ def c3_disc_means(cov: pd.DataFrame, sites: pd.DataFrame) -> Rule:
                 f"largest difference {worst:.1e} (relative; rule {C3_TOL:g})")
 
 
+# --- C4-C8: the models -------------------------------------------------------------------------
+
+C4_TOL, C6_TOL = 1e-12, 1e-9
+C7_P = 0.01
+
+
+def _bm():
+    try:
+        from src.transform import bze_models as BM
+    except ImportError:
+        import bze_models as BM
+    return BM
+
+
+def c4_forests() -> Rule:
+    """At mineral sites, disc features, repeat 0, fold 0, the first 20 held-out
+    sites: QRF's weights non-negative, summing to one, and equal to a
+    tree-by-tree recomputation from the leaves."""
+    from sklearn.ensemble import RandomForestRegressor
+    BM = _bm()
+    t = BM.load()
+    p = t[t["bze_moor"].astype(int) == 0].reset_index(drop=True)
+    X, _ = BM.features(p, "disc")
+    y = p["kv_0_30"].to_numpy(float)
+    fl = BM.folds(len(p), 0)
+    train, test = np.flatnonzero(fl != 0), np.flatnonzero(fl == 0)[:20]
+    rf = RandomForestRegressor(n_estimators=BM.F.TREES, max_features=BM.max_features(X.shape[1]),
+                               min_samples_leaf=BM.F.MIN_LEAF, bootstrap=True, random_state=BM.SEED, n_jobs=-1)
+    rf.fit(X[train], y[train])
+    W = BM.F.qrf_weights(rf, X[train], X[test])
+    W2 = np.zeros_like(W)
+    for est in rf.estimators_:
+        lt, ls = est.apply(X[train]), est.apply(X[test])
+        for j in range(len(test)):
+            same = lt == ls[j]
+            W2[j, same] += 1.0 / same.sum()
+    W2 /= len(rf.estimators_)
+    err = float(np.abs(W - W2).max())
+    ok = bool(W.min() >= 0 and np.abs(W.sum(axis=1) - 1).max() <= C4_TOL and err <= C4_TOL)
+    return Rule("C4 forests", ok, f"20 held-out mineral sites: weights non-negative, summing to one within "
+                f"{np.abs(W.sum(axis=1) - 1).max():.1e}; a tree-by-tree recomputation agrees within {err:.1e} (rule {C4_TOL:g})")
+
+
+def c5_folds(cv: pd.DataFrame) -> Rule:
+    """Per population and repeat, the folds partition the sites, sizes
+    differing by at most one, and every model and feature set uses them."""
+    problems = []
+    for (pop, r), g in cv.groupby(["population", "repeat"]):
+        assign = g.groupby("pointid")["fold"].nunique()
+        if (assign != 1).any():
+            problems.append(f"{pop} r{r}: a site in two folds")
+        f = g.drop_duplicates("pointid")["fold"].value_counts()
+        if f.max() - f.min() > 1 or len(f) != _bm().FOLDS:
+            problems.append(f"{pop} r{r}: fold sizes {f.min()}-{f.max()}")
+        per = g.groupby(["features", "method"])["pointid"].nunique()
+        if per.nunique() != 1:
+            problems.append(f"{pop} r{r}: models predict different sets of sites")
+    sites = cv.groupby("population")["pointid"].nunique().to_dict()
+    return Rule("C5 folds", not problems, "; ".join(problems) or
+                f"{sites}: every repeat's ten folds partition the sites, sizes differing by at most one, the same for every model")
+
+
+def c6_residual_kriging() -> Rule:
+    """At organic sites, disc features, repeat 0, fold 0: the residual
+    kriging's predictor and variance at the grid's maximum equal the bordered
+    system's, and its predictive returns its levels at its quantiles."""
+    BM = _bm()
+    try:
+        from src.checks.checkpoint4 import bordered
+        from src.transform import kriging as K, reml as Mr
+    except ImportError:
+        from checkpoint4 import bordered
+        import kriging as K
+        import reml as Mr
+    t = BM.load()
+    p = t[t["bze_moor"].astype(int) == 1].reset_index(drop=True)
+    X, _ = BM.features(p, "disc")
+    y = p["kv_0_30"].to_numpy(float)
+    xy = p[["xcoord", "ycoord"]].to_numpy(float)
+    fl = BM.folds(len(p), 0)
+    train, test = np.flatnonzero(fl != 0), np.flatnonzero(fl == 0)
+    res = BM.forest_fold(X, y, train, test, BM.SEED + 1000)
+    resid = y[train] - np.array(res["oob"])
+    lo, hi = BM.residual_bounds(xy[train])
+    grid = K.make_grid("exponential", lo, hi)
+    Xc, X0 = K.design("constant", xy[train], xy[test])
+    post = K.evaluate(grid, xy[train], resid, Xc, xy[test], X0)
+    g = int(np.nanargmax(post.logpost))
+    a, tau, _ = (v[g] for v in grid.arrays())
+    C = (1 - tau) * Mr.correlation("exponential", K.distances(xy[train], xy[train]), a)
+    np.fill_diagonal(C, 1.0)
+    c0 = (1 - tau) * Mr.correlation("exponential", K.distances(xy[test], xy[train]), a)
+    ep = ev = 0.0
+    for j in range(len(test)):
+        pr, v, _ = bordered(C, Xc, c0[j], X0[j], resid)
+        ep = max(ep, abs(pr - post.pred[g, j]) / max(abs(pr), 1.0))
+        ev = max(ev, abs(v - post.var1[g, j]) / max(abs(v), 1e-12))
+    mix = K.predictive(post, 0)
+    qs = mix.quantiles([0.05, 0.5, 0.95])
+    lev = float(np.abs(mix.cdf(qs) - np.array([0.05, 0.5, 0.95])).max())
+    ok = ep <= C6_TOL and ev <= C6_TOL and lev <= C6_TOL
+    return Rule("C6 residual kriging", ok, f"{len(test)} held-out organic sites at the grid's maximum: predictor within "
+                f"{ep:.1e}, variance within {ev:.1e} of the bordered system (relative); the predictive returns its levels "
+                f"within {lev:.1e} (rule {C6_TOL:g})")
+
+
+def c7_displacement() -> Rule:
+    from scipy import stats
+    BM = _bm()
+    t = BM.load()
+    xy = t[t["bze_moor"].astype(int) == 0][["xcoord", "ycoord"]].to_numpy(float)
+    worst, pmin = 0.0, 1.0
+    for rep in range(BM.D7_REPLICATES):
+        d = np.hypot(*(BM.displace(xy, rep) - xy).T)
+        worst = max(worst, float(d.max()))
+        pmin = min(pmin, float(stats.kstest((d / BC.RADIUS) ** 2, "uniform").pvalue))
+    ok = worst <= BC.RADIUS + 1e-9 and pmin > C7_P
+    return Rule("C7 the second displacement", ok, f"{BM.D7_REPLICATES} displacements of {len(xy)} points: the farthest "
+                f"{worst:.1f} m; (distance / 4 km)^2 against the uniform, smallest KS p = {pmin:.3f} (rule > {C7_P})")
+
+
+def c8_records(cov: pd.DataFrame, cv: pd.DataFrame, d7: pd.DataFrame) -> Rule:
+    BM = _bm()
+    kept = cov[cov["kept"]]
+    n = {pop: int(((kept["pointid"].isin(cv[cv.population == pop]["pointid"])).sum())) for pop in ("mineral", "organic")}
+    expected = sum(n.values()) * BM.REPEATS * 6
+    cols = ["mean", "var", "crps"] + [c for c in cv if c.startswith("q0.") or c.startswith("q1.")]
+    ok = (len(cov) == N_SITES and len(cv) == expected and np.isfinite(cv[cols].to_numpy(float)).all()
+          and np.isfinite(d7[cols].to_numpy(float)).all() and d7["replicate"].nunique() == BM.D7_REPLICATES)
+    return Rule("C8 records", ok, f"bze_covariates {len(cov)} rows; bze_cv {len(cv)} rows (expected {expected}: "
+                f"{n} sites x {BM.REPEATS} repeats x 6 models and sets), every value finite; bze_d7 {len(d7)} rows over "
+                f"{d7['replicate'].nunique()} displacements, finite")
+
+
 def run() -> list[Rule]:
     manifest = pd.read_csv(MANIFEST, dtype=str, keep_default_na=False)
     sources = pd.read_csv(SOURCES)
     cov = pd.read_parquet(BC.OUT)
-    return [c1_provenance(manifest, sources), c2_coverage(cov), c3_disc_means(cov, BC.sites())]
+    rules = [c1_provenance(manifest, sources), c2_coverage(cov), c3_disc_means(cov, BC.sites())]
+    BM = _bm()
+    if BM.OUT.exists() and BM.OUT_D7.exists():
+        cv, d7 = pd.read_parquet(BM.OUT), pd.read_parquet(BM.OUT_D7)
+        rules += [c4_forests(), c5_folds(cv), c6_residual_kriging(), c7_displacement(), c8_records(cov, cv, d7)]
+    return rules
 
 
 def main(argv: list[str]) -> int:

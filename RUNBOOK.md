@@ -17,7 +17,7 @@ Plan, not to this file.
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
 | 5 | Each field's mean stock by Bayesian block kriging, beside the design-based estimate the samples support; the samples needed for a given precision and the detectable change; gstat in R as an independent check; the six figures and the report | **run** 14.11.2026: Checkpoint 5 passed, 5/5 rules; G1 (gstat) failed at its fixed tolerance for the block variance and passes as amended |
-| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **covariates read** 15.11.2026: DWD 1991–2020, DGM200 and the map of organic soils at all 3,104 sites, under both readings; C1–C3 pass (C2 amended after it failed: 23 coastal and border sites left out) |
+| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **run** 16.11.2026: Checkpoint 6 passed, 8/8 rules (C2 amended after it failed); mineral QRF on the disc readings 13 % better than land use alone and within 0.4 % of the sites' own descriptions; a second 4 km displacement costs ≤ 0.6 %; maps (D8) to follow |
 
 Stages 5 and 6 are a direction, not instructions. Each gets its rules,
 written before its data is touched, once the stage before it has passed. The order
@@ -2310,6 +2310,73 @@ in `src/checks/checkpoint6.py`, with a test that makes it fail.
 | C6 residual kriging | As Stage 4's K1 and K3 for the residual kriging of D4 (b): the predictor and variance equal the bordered system's within 10⁻⁹ at one fold; the predictive returns its levels within 10⁻⁹ |
 | C7 the second displacement | Every displaced point lies within 4 km of its published point, and the five displacements' distances follow the uniform-over-disc distribution (a Kolmogorov–Smirnov test of the distance divided by 4 km against √U, p above 0.01) |
 | C8 records | `curated/bze_covariates.parquet`, `curated/bze_cv.parquet` and the maps' tables hold every row these rules name, every value finite where the rules say it must be |
+
+### Result
+
+**Run on 16 November 2026, on the author's machine; Checkpoint 6 passed,
+8/8 rules** (C2 as amended after it failed; C8's map tables join with D8).
+
+```text
+PASS  C1 provenance: accepted files in the manifest: dwd_grids_1991_2020 4, bkg_dgm200 2, thuenen_orgsoils_2023 1; each source in config/sources.csv with its version, licence and attribution
+PASS  C2 coverage: 3104 sites; 17 lack a covariate under a reading, 15 have less than half their disc inside the data: 23 left out (0.74 %; amended rule: at most 1 %), every kept site complete; 146 discs partly outside
+PASS  C3 disc means: 50 sites x 7 covariates against a brute-force mean: largest difference 0.0e+00 (relative; rule 1e-09)
+PASS  C4 forests: 20 held-out mineral sites: weights non-negative, summing to one within 1.1e-15; a tree-by-tree recomputation agrees within 0.0e+00 (rule 1e-12)
+PASS  C5 folds: {'mineral': 2937, 'organic': 144}: every repeat's ten folds partition the sites, sizes differing by at most one, the same for every model
+PASS  C6 residual kriging: 15 held-out organic sites at the grid's maximum: predictor within 3.8e-15, variance within 2.2e-16 of the bordered system (relative); the predictive returns its levels within 4.5e-14 (rule 1e-09)
+PASS  C7 the second displacement: 5 displacements of 2937 points: the farthest 3999.7 m; (distance / 4 km)^2 against the uniform, smallest KS p = 0.068 (rule > 0.01)
+PASS  C8 records: bze_covariates 3104 rows; bze_cv 55458 rows (expected 55458: {'mineral': 2937, 'organic': 144} sites x 3 repeats x 6 models and sets), every value finite; bze_d7 87510 rows over 5 displacements, finite
+```
+
+**D6, the scores** (`python -m src.transform.bze_scores`). CRPS, RMSE and ME
+in Mg C/ha, per repeat and averaged; PICP and the largest QCP departure
+pooled:
+
+| Population | Features | Model | CRPS | RMSE | MEC | PICP 50 / 80 / 90 / 95 | QCP max |
+|---|---|---|---|---|---|---|---|
+| mineral (2,937) | none | baseline | 13.78 | 27.32 | 0.15 | 0.50 / 0.80 / 0.90 / 0.95 | 0.002 |
+| | point | QRF | 12.12 | 24.85 | 0.30 | 0.52 / 0.82 / 0.91 / 0.95 | 0.016 |
+| | disc | QRF | **11.99** | 24.66 | 0.31 | 0.53 / 0.82 / 0.90 / 0.95 | 0.015 |
+| | point | RF-RK | 12.67 | 24.56 | 0.31 | 0.65 / 0.87 / 0.92 / 0.95 | 0.110 |
+| | disc | RF-RK | 12.62 | 24.47 | 0.32 | 0.65 / 0.88 / 0.92 / 0.95 | 0.110 |
+| | desc | QRF (reference) | 11.94 | 24.05 | 0.34 | 0.53 / 0.83 / 0.91 / 0.96 | 0.018 |
+| organic (144) | none | baseline | 48.57 | 85.02 | 0.08 | 0.49 / 0.79 / 0.88 / 0.94 | 0.022 |
+| | point | QRF | 47.82 | 84.36 | 0.10 | 0.51 / 0.80 / 0.89 / 0.93 | 0.031 |
+| | disc | QRF | 48.11 | 84.48 | 0.10 | 0.52 / 0.81 / 0.90 / 0.94 | 0.028 |
+| | point | RF-RK | 47.90 | 84.24 | 0.10 | 0.51 / 0.81 / 0.88 / 0.94 | 0.030 |
+| | disc | RF-RK | 47.95 | 84.14 | 0.10 | 0.48 / 0.81 / 0.89 / 0.95 | 0.037 |
+| | desc | QRF (reference) | 45.81 | 81.43 | 0.16 | 0.54 / 0.82 / 0.89 / 0.93 | 0.026 |
+
+The three repeats' mineral CRPS lie within 0.034 Mg C/ha of each other for
+every model; the organic, within 0.81.
+
+- **Mineral soils: a map of the published points predicts 13 % better than
+  land use alone, and almost as well as the sites' own descriptions.** QRF
+  on the disc readings has a CRPS of 11.99 against the baseline's 13.78
+  (MEC 0.31 against 0.15); the forest on what was recorded at the true
+  site, which no map can use, reaches 11.94 (MEC 0.34). The 4 km leaves the
+  covariates within 0.4 % of CRPS of the field descriptions.
+- **Reading the disc beats reading the point, a little.** The disc's CRPS
+  is lower by 0.13 Mg C/ha on average (1.1 %), at 54 % of the sites; for
+  RF-RK by 0.05.
+- **D7: a second displacement costs nothing on the disc and 0.6 % at the
+  point.** Over the five displacements QRF's CRPS moves from 11.96 to 11.97
+  on the disc readings (MEC 0.308 both) and from 12.09 to 12.16 at the
+  point (MEC 0.297 to 0.292); its 90 % intervals hold 0.90–0.91 throughout.
+  If a second 4 km costs this little, the first, which no user can undo,
+  probably cost little as well: at 8 km between sites, the covariates of
+  D2 vary over distances longer than 4 km.
+- **Kriging the residuals does not help the predictive distribution.** RF-RK
+  lowers RMSE slightly (24.47 against 24.66) but raises CRPS by 5 %: its
+  intervals are too wide in the middle (PICP 50 % at 0.65, QCP off by up to
+  0.11). With neighbours 4–10 km apart and the points moved by up to 4 km,
+  little spatial correlation is left to krige. D8 therefore maps with QRF
+  on the disc readings.
+- **Organic soils: 144 sites carry little.** Every model is within 2 % of
+  the baseline's CRPS except the site descriptions (45.81 against 48.57,
+  MEC 0.16): what predicts an organic soil's stock is what was found in it
+  (its soil type, groundwater class and relief, as described in the field), not where its moved point lies.
+- All mineral models are calibrated within 0.02 of QCP's levels except
+  RF-RK; organic within 0.04.
 
 ### If it fails
 
