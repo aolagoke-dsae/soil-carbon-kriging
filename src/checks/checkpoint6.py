@@ -249,6 +249,38 @@ def c8_records(cov: pd.DataFrame, cv: pd.DataFrame, d7: pd.DataFrame) -> Rule:
                 f"{d7['replicate'].nunique()} displacements, finite")
 
 
+def c8_map(n: int = 50) -> Rule:
+    """D8's table: every mapped cell under both land uses, every value finite
+    and its quantiles ordered; and at n cells drawn with a fixed seed, the
+    disc covariates equal D3's reader at the cell's centre within 1e-9."""
+    try:
+        from src.transform import bze_map as MP
+    except ImportError:
+        import bze_map as MP
+    m = pd.read_parquet(MP.OUT)
+    vals = m[["mean", "q0.05", "q0.50", "q0.95"]].to_numpy(float)
+    per = m.groupby("land_use").size()
+    ordered = bool(((m["q0.05"] <= m["q0.50"]) & (m["q0.50"] <= m["q0.95"])).all())
+    cells = MP.cell_covariates(MP.K.Cache(_bm().CACHE))
+    keep = cells[MP.mapped(cells)].reset_index(drop=True)
+    rng = np.random.default_rng(C3_SEED + 8)
+    pick = keep.iloc[rng.choice(len(keep), n, replace=False)]
+    worst = 0.0
+    for name in BC.NAMES:
+        r = BC.Raster.load(name)
+        x, y = pick["x"].to_numpy(float), pick["y"].to_numpy(float)
+        if r.crs != "EPSG:25832":
+            from pyproj import Transformer
+            x, y = Transformer.from_crs("EPSG:25832", r.crs, always_xy=True).transform(x, y)
+        got = BC.read(r, np.asarray(x, float), np.asarray(y, float))["disc"].to_numpy()
+        worst = max(worst, float(np.max(np.abs(got - pick[f"{name}_disc"].to_numpy()) / np.maximum(np.abs(got), 1.0))))
+    ok = (set(per.index) == {"A", "G"} and per.nunique() == 1 and int(per.iloc[0]) == len(keep)
+          and np.isfinite(vals).all() and ordered and worst <= C3_TOL)
+    return Rule("C8 records, the maps", ok, f"bze_map {len(m)} rows: {int(per.iloc[0])} cells x cropland and grassland, "
+                f"every value finite, quantiles ordered: {ordered}; at {n} cells the convolved disc means equal D3's "
+                f"reader within {worst:.1e} (rule {C3_TOL:g})")
+
+
 def run() -> list[Rule]:
     manifest = pd.read_csv(MANIFEST, dtype=str, keep_default_na=False)
     sources = pd.read_csv(SOURCES)
@@ -258,6 +290,12 @@ def run() -> list[Rule]:
     if BM.OUT.exists() and BM.OUT_D7.exists():
         cv, d7 = pd.read_parquet(BM.OUT), pd.read_parquet(BM.OUT_D7)
         rules += [c4_forests(), c5_folds(cv), c6_residual_kriging(), c7_displacement(), c8_records(cov, cv, d7)]
+    try:
+        from src.transform import bze_map as MP
+    except ImportError:
+        import bze_map as MP
+    if MP.OUT.exists():
+        rules.append(c8_map())
     return rules
 
 

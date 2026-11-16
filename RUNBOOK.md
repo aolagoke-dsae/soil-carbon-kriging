@@ -17,7 +17,7 @@ Plan, not to this file.
 | 3 | Terrain covariates for the eight fields: slope, curvature, topographic position and wetness from the newest USGS 3DEP 1/3 arc-second tiles, read from The National Map | **run** 08.11.2026: Checkpoint 3 passed, 6/6 rules |
 | 4 | Kriging per field with the Stage 2 models and with terrain as an external drift: the parameter uncertainty propagated, cross-validation and interval coverage (PICP, QCP); and a machine-learning benchmark against it: a quantile regression forest, and a random forest with kriged residuals, trained across the eight fields on coordinates and terrain | **run** 08.11.2026: Checkpoint 4 passed, 11/11 rules; with the addendum of 10.11.2026 (GSTools as an independent check, the maps, MSDR and two figures), 13/13 |
 | 5 | Each field's mean stock by Bayesian block kriging, beside the design-based estimate the samples support; the samples needed for a given precision and the detectable change; gstat in R as an independent check; the six figures and the report | **run** 14.11.2026: Checkpoint 5 passed, 5/5 rules; G1 (gstat) failed at its fixed tolerance for the block variance and passes as amended |
-| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **run** 16.11.2026: Checkpoint 6 passed, 8/8 rules (C2 amended after it failed); mineral QRF on the disc readings 13 % better than land use alone and within 0.4 % of the sites' own descriptions; a second 4 km displacement costs ≤ 0.6 %; maps (D8) to follow |
+| 6 | BZE-LW: what the published, randomised points can say. Quantile regression forests with and without kriged residuals, mineral and organic soils apart, covariates read at the published point and averaged over its 4 km disc, against a model of the sites' own field descriptions; the cost of a second displacement; maps conditional on land use | **run** 16.11.2026: Checkpoint 6 passed, 8/8 rules (C2 amended after it failed); mineral QRF on the disc readings 13 % better than land use alone and within 0.4 % of the sites' own descriptions; a second 4 km displacement costs ≤ 0.6 %; maps of all of Germany at 1 km (D8) |
 
 Stages 5 and 6 are a direction, not instructions. Each gets its rules,
 written before its data is touched, once the stage before it has passed. The order
@@ -2377,6 +2377,25 @@ every model; the organic, within 0.81.
   (its soil type, groundwater class and relief, as described in the field), not where its moved point lies.
 - All mineral models are calibrated within 0.02 of QCP's levels except
   RF-RK; organic within 0.04.
+
+**D8, the maps** (`python -m src.transform.bze_map`, five runs of under
+three minutes on 16.11.2026). QRF on the disc readings, refitted on all
+2,937 mineral sites, at 355,989 of the 556,614 1 km cell centres over the
+DGM's extent: those on DWD's land grid whose every disc has at least half
+its cells inside the data, C2's rule. Per cell, if it were cropland and if
+it were grassland, the predictive mean, median and 90 % interval:
+
+| If the cell were | Median of the cells' medians | Median 90 % interval |
+|---|---|---|
+| cropland | 57.8 Mg C/ha | 37.0–96.4 |
+| grassland | 82.3 Mg C/ha | 46.6–136.9 |
+
+C8's map half passes: every value finite and every interval ordered, and at
+50 cells the convolved disc means equal D3's reader within 5 × 10⁻¹⁴. The
+figure, `docs/figures/bze_map.png`, draws the two medians, with the table it
+draws in `docs/figures/bze_map.csv.gz`. Choice made while building: the
+forest's weights for 712,000 predictions are formed as one sparse product
+over the trees, which equals `forests.qrf_weights` exactly (tested).
 
 ### If it fails
 

@@ -3,8 +3,9 @@
 **Soil organic carbon mapped with its uncertainty, in Python.** Bayesian
 kriging of field-scale carbon stocks from eight U.S. Midwest fields, with the
 uncertainty of every prediction and of each field's mean. Germany's
-agricultural soil inventory, whose published site locations are offset by up
-to 4 km for data protection, is pulled and checked; its model is Stage 6.
+agricultural soil inventory (BZE-LW, 3,104 sites), whose published locations
+are moved by up to 4 km for data protection: what those points can still
+predict, and a 1 km map of mineral soils' carbon across Germany.
 
 **Author:** Dr. Adewole Olagoke · [aolagoke-dsae](https://github.com/aolagoke-dsae)
 
@@ -28,7 +29,8 @@ to 4 km for data protection, is pulled and checked; its model is Stage 6.
 > by a commit before its data is touched; Stage 2's followed a review
 > against current practice ([`docs/REVIEW_STAGE2.md`](docs/REVIEW_STAGE2.md)).
 > A pre-publication review of v1.0 ([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md),
-> 15.11.2026) is being worked through before Stage 6.
+> 15.11.2026) was worked through before Stage 6, which ran on 16.11.2026:
+> Checkpoint 6, 8 of 8.
 
 ## Kurzfassung
 
@@ -51,9 +53,15 @@ statt 25 bis 103 Proben bei einfacher Zufallsstichprobe 13 bis 65 auf einem
 Raster mit dem Stichprobenmittel und 13 bis 52 mit Block-Kriging, sofern das
 angepasste Modell weiter gilt; der größte Teil des Gewinns kommt vom Raster
 selbst. Die Regeln jeder Stufe werden per
-Commit festgelegt, bevor ihre Daten verwendet werden; die Übertragung auf die
-Bodenzustandserhebung Landwirtschaft (BZE-LW) des Thünen-Instituts folgt als
-Stufe 6.
+Commit festgelegt, bevor ihre Daten verwendet werden. Stufe 6 überträgt die
+Methoden auf die Bodenzustandserhebung Landwirtschaft (BZE-LW) des
+Thünen-Instituts, deren veröffentlichte Standorte um bis zu 4 km verschoben
+sind: Ein Quantile Regression Forest auf Klima, Relief und der Karte
+organischer Böden, je über 4 km gemittelt, sagt den Vorrat mineralischer
+Böden um 13 % besser vorher als die Landnutzung allein und fast so gut wie
+die Standortbeschreibungen vom Feld; eine zweite Verschiebung um 4 km kostet
+höchstens 0,6 %. Daraus entsteht eine 1-km-Karte für Deutschland, getrennt
+für Acker und Grünland.
 
 ## Why
 
@@ -119,7 +127,7 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 - **Field means (Stage 5):** Bayesian block kriging of each field's mean,
   checked against a direct solve, a calibration simulation and R's gstat
   (Checkpoint 5, 5/5 rules).
-- **Tests and CI:** 288 unit tests, none of which makes a request, four of
+- **Tests and CI:** 291 unit tests, none of which makes a request, four of
   them redrawing the report's figures from their committed tables; CI on
   Python 3.11 and 3.14 on Linux, 3.14 on Windows from the lock file, and the
   gstat and nlme checks in R.
@@ -178,12 +186,36 @@ the pulls and the checkpoints is in [`RUNBOOK.md`](RUNBOOK.md), Stages 1 and 3.
 
   ![The smallest detectable change in each field's mean stock against the number of samples per campaign, for fixed-depth stocks, under the fitted models](docs/figures/detectable_change.png)
 
-**Under review:** a pre-publication review of v1.0
-([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md)) found five major issues. They are
-addressed before Stage 6, as dated addenda with their rules fixed first.
+**What Stage 6 found** ([`RUNBOOK.md`](RUNBOOK.md), Stage 6), on BZE-LW's
+2,937 mineral and 144 organic sites, with covariates from DWD (climate,
+1991–2020), BKG's DGM200 (terrain) and Thünen's map of organic soils:
 
-**Not yet:** the national-scale model for BZE-LW (Stage 6), which has no
-rules yet.
+- **The moved points still predict well.** A quantile regression forest on
+  the covariates averaged over each point's 4 km disc has a CRPS of 11.99
+  Mg C/ha against land use alone's 13.78 (13 % lower; MEC 0.31 against
+  0.15), within 0.4 % of a forest on the sites' own field descriptions,
+  which were made at the true locations and which no map can use.
+- **Moving every point again by up to 4 km costs at most 0.6 %** of CRPS,
+  and nothing on the disc readings, so the first 4 km, which no user can
+  undo, probably cost little too.
+- **Kriging the forest's residuals does not help:** its CRPS is 5 % higher,
+  its intervals too wide in the middle. With neighbours 4–10 km apart and
+  every point moved, little spatial correlation is left.
+- **Organic soils (144 sites) are predicted only by their field
+  descriptions;** the moved points' covariates barely beat the baseline.
+- **The 4 km is visible:** of the sites the inventory calls organic, only 39
+  % have their published point on Thünen's map of organic soils.
+
+  ![Mineral soils' carbon in 0-30 cm across Germany at 1 km, if cropland and if grassland](docs/figures/bze_map.png)
+
+  *The map, at 355,989 cells of 1 km: the median predicted stock if the
+  cell were cropland (median 58 Mg C/ha) and if it were grassland (82),
+  each with its 90 % interval in `docs/figures/bze_map.csv.gz`. It is
+  conditional on the land use and not masked to farmland.*
+
+**Reviewed:** a pre-publication review of v1.0
+([`docs/REVIEW_V1.md`](docs/REVIEW_V1.md)) found five major issues, each
+answered by a dated addendum with its rules fixed first (v1.1).
 
 ## Licence
 

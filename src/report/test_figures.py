@@ -50,3 +50,11 @@ def test_detectable_change(tmp_path, means):
     out = tmp_path / "detectable_change.png"
     FG.draw_detectable_change(pd.read_csv(TABLES / "detectable_change.csv"), means, out)
     assert _drawn(out)
+
+
+def test_bze_map(tmp_path):
+    table = pd.read_csv(TABLES / "bze_map.csv.gz")
+    assert set(table["land_use"]) == {"A", "G"} and (table["q0.05"] <= table["q0.95"]).all()
+    out = tmp_path / "bze_map.png"
+    FG.draw_bze_map(table, out)
+    assert _drawn(out)

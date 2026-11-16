@@ -343,6 +343,44 @@ def draw_detectable_change(effort: pd.DataFrame, means: pd.DataFrame, out) -> No
     plt.close(fig)
 
 
+def bze_map_table(m: pd.DataFrame) -> pd.DataFrame:
+    """Stage 6, D8's maps as the figure draws them: the cell's column and row
+    on the 1 km grid (from its centre's x and y, EPSG:25832), the land use,
+    and the median and 90 % interval, to 0.1 Mg C/ha."""
+    out = pd.DataFrame({"col": ((m["x"] - 280500) // 1000).astype(int), "row": ((6101500 - m["y"]) // 1000).astype(int),
+                        "land_use": m["land_use"]})
+    for q in ("q0.05", "q0.50", "q0.95"):
+        out[q] = m[q].round(1)
+    return out
+
+
+def draw_bze_map(t: pd.DataFrame, out) -> None:
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+    nr, nc = int(t["row"].max()) + 1, int(t["col"].max()) + 1
+    bounds = [0, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 200]
+    cmap = ListedColormap(BLUES[1:12])
+    norm = BoundaryNorm(bounds, cmap.N)
+    fig, axes = plt.subplots(1, 2, figsize=(9.4, 6.4))
+    fig.subplots_adjust(top=0.78, left=0.02, right=0.98, bottom=0.13, wspace=0.04)
+    for ax, (lu, label) in zip(axes, (("A", "if cropland"), ("G", "if grassland"))):
+        g = t[t["land_use"] == lu]
+        img = np.full((nr, nc), np.nan)
+        img[g["row"].to_numpy(), g["col"].to_numpy()] = g["q0.50"].to_numpy()
+        ax.imshow(img, cmap=cmap, norm=norm, interpolation="nearest")
+        ax.set_title(f"{label}: median {g['q0.50'].median():.0f} Mg C/ha", fontsize=9)
+        ax.set_axis_off()
+    cax = fig.add_axes([0.25, 0.08, 0.5, 0.025])
+    cb = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax, orientation="horizontal", ticks=bounds)
+    cb.set_label("predicted median stock in 0-30 cm, mineral soils (Mg C/ha)", color=SECONDARY, fontsize=8)
+    cb.outline.set_edgecolor(BASELINE)
+    _title(fig, "Mineral soils' carbon in 0-30 cm across Germany, at 1 km, from the published BZE-LW points",
+           "Quantile regression forest on climate (DWD 1991-2020), terrain (BKG DGM200) and the map of organic soils "
+           "(Thuenen 2023), each averaged over 4 km. Conditional on the land use, not masked to farmland. Data: Thuenen "
+           "BZE-LW (CC BY 4.0); DWD (CC BY 4.0); (c) GeoBasis-DE / BKG (2026) dl-de/by-2-0.", 120)
+    fig.savefig(out, dpi=DPI, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+
+
 def main(argv: list[str]) -> int:
     """python -m src.report.figures"""
     if argv:
@@ -379,6 +417,14 @@ def main(argv: list[str]) -> int:
         effort.round(4).to_csv(FIGURES / "detectable_change.csv", index=False)
         draw_field_means(means, FIGURES / "field_means.png")
         draw_detectable_change(effort, means, FIGURES / "detectable_change.png")
+    try:
+        from src.transform import bze_map as BMAP
+    except ImportError:
+        import bze_map as BMAP
+    if BMAP.OUT.exists():
+        bt = bze_map_table(pd.read_parquet(BMAP.OUT))
+        bt.to_csv(FIGURES / "bze_map.csv.gz", index=False, compression="gzip")
+        draw_bze_map(bt, FIGURES / "bze_map.png")
     print(f"the map's field: {site}, MEC {mec[site]:.2f} (next: {mec.drop(site).idxmax()}, "
           f"{mec.drop(site).max():.2f}); figures in {FIGURES.relative_to(K.ROOT).as_posix()}/")
     return 0

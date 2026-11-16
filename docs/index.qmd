@@ -132,6 +132,20 @@ found. The RUNBOOK records it, and that the tolerance was widened after it
 failed. GSTools reproduces
 the cross-validation's plug-in kriging within 10⁻¹⁴ in every field.
 
+## What Germany's published soil inventory can say
+
+BZE-LW, Germany's agricultural soil inventory, publishes 3,104 sites' carbon
+stocks, each at a point moved by up to 4 km. With climate (DWD), terrain
+(BKG DGM200) and Thünen's map of organic soils averaged over each point's
+4 km disc, a quantile regression forest predicts mineral soils' stock with a
+CRPS 13 % below land use alone's, within 0.4 % of a forest on the sites' own
+field descriptions, made where the samples were taken. Moving every point a
+second time by up to 4 km costs at most 0.6 %; kriging the forest's residuals
+makes its predictive distribution worse, not better. The 144 organic sites
+are predicted only by their field descriptions.
+
+![Mineral soils' carbon at 1 km, if cropland and if grassland](figures/bze_map.png)
+
 ## Limits
 
 The field is the hull of its samples; stocks are at fixed depth to 30 cm,
